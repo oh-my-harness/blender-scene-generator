@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RUNTIME_CRATE="$SCRIPT_DIR/../REDACTED/llm-harness-py"
+RUNTIME_CRATE="$SCRIPT_DIR/../llm-harness-runtime/crates/llm-harness-py"
 VENV_DIR="$RUNTIME_CRATE/.venv"
 PYTHON="$VENV_DIR/bin/python3"
 MATURIN="$VENV_DIR/bin/maturin"
