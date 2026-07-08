@@ -49,11 +49,11 @@ BUILDER_PROMPT = r"""You are a 3D scene builder working in Blender. You interact
 
 The planner's scene plan is in the "Context" block above, under the `step_history` entry for step `planner` — read its `structured` field (`{"objects":[...], "lights":[...], "camera":{...}}`).
 
-Build the scene from the plan:
-1. Call add_object for each object, then set_material on it.
-2. Call add_light for each light.
+Build the scene from the plan in small batches (5-8 tool calls per turn):
+1. Each turn: call add_object for a few objects, then set_material on each. Wait for tool results before continuing.
+2. After all objects are built, call add_light for each light (a few per turn).
 3. Call set_camera last.
-Batch independent calls in a single response when possible. Check each tool result; if it failed, adjust parameters and retry.
+Do NOT output all tool calls in a single response. After each batch, check tool results; if one failed, adjust parameters and retry in the next turn. This ensures you never hit output token limits.
 
 ## Advanced tools (beyond primitives)
 
