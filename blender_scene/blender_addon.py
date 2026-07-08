@@ -25,11 +25,14 @@ def _err(msg):
     return {"ok": False, "error": str(msg)}
 
 
-def _run_on_main(fn):
+def _run_on_main(fn, timeout: float = 30.0):
     """Schedule fn on Blender's main thread and wait for the result."""
     result_q: _queue.Queue = _queue.Queue()
     _main_thread_queue.put((fn, result_q))
-    return result_q.get()  # blocks until the timer runs fn
+    try:
+        return result_q.get(timeout=timeout)  # blocks until the timer runs fn
+    except _queue.Empty:
+        return _err(f"timeout: Blender main thread did not execute within {timeout}s")
 
 
 def _timer_drain():
@@ -486,7 +489,7 @@ def start_server():
     print(f"[addon] listening on {HOST}:{PORT}")
     while True:
         conn, _ = server.accept()
-        handle_client(conn)
+        threading.Thread(target=handle_client, args=(conn,), daemon=True).start()
 
 
 # Entry point when loaded via --python
