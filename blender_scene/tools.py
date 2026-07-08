@@ -295,15 +295,15 @@ class BlenderTool:
 
 
 def _make_callback(bridge: BlenderBridge, action: str, transform_empty: bool):
-    """Build an async callback for lh.create_tool.
+    """Build a sync callback for lh.create_tool.
 
-    为 lh.create_tool 构建异步回调。
+    为 lh.create_tool 构建同步回调。
     transform_empty=True 时，向 bridge 发送空 params {}（glm-5.2 workaround）。
     """
 
-    async def callback(args: Any, ctx: Any) -> dict:
+    def callback(args: Any, ctx: Any) -> dict:
         params = {} if transform_empty else args
-        data = await bridge.send(action, params)
+        data = bridge.send(action, params)
         return {
             "content": [
                 {"type": "text", "text": json.dumps({"action": action, "result": data})},
