@@ -190,24 +190,25 @@
             const list = document.getElementById('events');
             const li = document.createElement('li');
             const ts = new Date().toLocaleTimeString();
+            const type = event.type;
 
-            if (event.StepStarted) {
-                const stepId = event.StepStarted.step_id;
-                const stepName = event.StepStarted.step_name || stepNames[stepId] || stepId;
+            if (type === 'step_started') {
+                const stepId = event.step_id;
+                const stepName = event.step_name || stepNames[stepId] || stepId;
                 li.textContent = `[${ts}] ▶ ${stepName}`;
-                li.className = 'event-StepStarted';
+                li.className = 'event-step_started';
                 setActiveNode(stepId);
                 if (stepId === 'wait_for_adjust') {
                     showAdjustSection();
                 }
                 addStepCard(stepId, stepName);
-            } else if (event.StepFinished) {
-                const stepId = event.StepFinished.step_id;
+            } else if (type === 'step_finished') {
+                const stepId = event.step_id;
                 const stepName = stepNames[stepId] || stepId;
-                const output = event.StepFinished.output || '';
-                const toolCount = event.StepFinished.tool_calls_count || 0;
-                const cost = event.StepFinished.cost;
-                const structured = event.StepFinished.structured;
+                const output = event.output || '';
+                const toolCount = event.tool_calls_count || 0;
+                const cost = event.cost;
+                const structured = event.structured;
 
                 li.textContent = `[${ts}] ✔ ${stepName}`;
                 if (toolCount > 0) {
@@ -216,7 +217,7 @@
                 if (cost && cost.input_tokens > 0) {
                     li.innerHTML += `<span class="event-meta">${cost.input_tokens}↓ ${cost.output_tokens}↑ tokens</span>`;
                 }
-                li.className = 'event-StepFinished';
+                li.className = 'event-step_finished';
 
                 // Show a truncated output preview in the event stream
                 if (output && output.trim()) {
@@ -240,26 +241,26 @@
                 if (stepId === 'wait_for_adjust') {
                     hideAdjustSection();
                 }
-            } else if (event.Paused) {
-                li.textContent = `[${ts}] ⏸ Paused: ${event.Paused.reason}`;
-                li.className = 'event-Paused';
+            } else if (type === 'paused') {
+                li.textContent = `[${ts}] ⏸ Paused: ${event.reason}`;
+                li.className = 'event-paused';
                 showReviewSection();
-            } else if (event.Resumed) {
+            } else if (type === 'resumed') {
                 li.textContent = `[${ts}] ▶ Resumed`;
-                li.className = 'event-Resumed';
+                li.className = 'event-resumed';
                 hideReviewSection();
-            } else if (event.Failed) {
-                li.textContent = `[${ts}] ✗ Failed: ${event.Failed.error}`;
-                li.className = 'event-Failed';
+            } else if (type === 'failed') {
+                li.textContent = `[${ts}] ✗ Failed: ${event.error}`;
+                li.className = 'event-failed';
                 document.getElementById('submit-btn').disabled = false;
-            } else if (event.Cancelled) {
-                li.textContent = `[${ts}] ✗ Cancelled: ${event.Cancelled.reason}`;
-                li.className = 'event-Failed';
+            } else if (type === 'cancelled') {
+                li.textContent = `[${ts}] ✗ Cancelled: ${event.reason}`;
+                li.className = 'event-failed';
                 document.getElementById('submit-btn').disabled = false;
-            } else if (event.StepProgress) {
+            } else if (type === 'step_progress') {
                 // StepProgress is high-frequency — update the step card's
                 // progress area, don't add to the event stream list.
-                appendStepProgress(event.StepProgress.step_id, event.StepProgress.progress);
+                appendStepProgress(event.step_id, event.progress);
                 return;
             } else {
                 li.textContent = `[${ts}] ${JSON.stringify(event)}`;
