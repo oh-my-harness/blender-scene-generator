@@ -50,11 +50,11 @@ class BlenderBridge:
         帧格式：4 字节大端长度前缀 + JSON 负载。
         锁跨写入和读取持有，使请求与响应不会被并发调用者拆分。
         """
-        if self._writer is None or self._reader is None:
-            await self.connect()
-        request = json.dumps({"action": action, "params": params}).encode()
-        len_prefix = struct.pack(">I", len(request))
         async with self._lock:
+            if self._writer is None or self._reader is None:
+                self._reader, self._writer = await asyncio.open_connection(self._host, self._port)
+            request = json.dumps({"action": action, "params": params}).encode()
+            len_prefix = struct.pack(">I", len(request))
             assert self._writer is not None and self._reader is not None
             self._writer.write(len_prefix + request)
             await self._writer.drain()
