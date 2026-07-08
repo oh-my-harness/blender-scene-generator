@@ -281,13 +281,17 @@ class BlenderTool:
     因此用此包装类补充这些属性。
     """
 
-    __slots__ = ("name", "description", "_tool", "drive")
+    __slots__ = ("name", "description", "_tool")
 
     def __init__(self, name: str, description: str, tool: Any):
         self.name = name
         self.description = description
         self._tool = tool
-        self.drive = tool.drive
+
+    @property
+    def drive(self):
+        """Test-only: drive the tool directly. Not available on production wheels."""
+        return self._tool.drive
 
 
 def _make_callback(bridge: BlenderBridge, action: str, transform_empty: bool):
