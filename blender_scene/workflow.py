@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 PLANNER_PROMPT = r"""You are a 3D scene planner. Read the user's scene description from the "Context" block above (key `user_description`), then produce a structured scene plan.
 
+Keep the plan COMPACT: maximum 20 objects. Merge similar elements (e.g. use one "columns" object instead of 4 separate columns). Omit trivial details. Each object should be essential to the scene.
+
 Output a JSON object with this exact structure:
 {
   "objects": [{"name": "string", "type": "cube|sphere|cylinder|plane|cone|torus", "location": [x,y,z], "scale": [x,y,z], "rotation": [rx,ry,rz], "material": {"color": [r,g,b], "roughness": 0.0-1.0, "metallic": 0.0-1.0}, "shape": "optional: describe how to build this if it needs boolean/extrude/curve, e.g. 'wall with window: cube difference smaller cube', 'I-beam: extrude L-profile depth 4 along Y', 'pipe: curve along points with bevel 0.05'"}],
@@ -40,7 +42,7 @@ Conventions:
 - `rotation` is Euler angles in radians.
 - `scale` is relative (1,1,1 = default size).
 
-Call the submit_step_result tool with this JSON as the `result` argument. Do NOT output the JSON as text — it MUST go in the tool call's result parameter.
+Call the submit_step_result tool with this JSON as the `result` argument. Do NOT output the JSON as text — it MUST go in the tool call's result parameter. The JSON must be complete and valid — if it gets truncated, the tool call will fail.
 """
 
 BUILDER_PROMPT = r"""You are a 3D scene builder working in Blender. You interact with the scene exclusively through tool calls.
