@@ -122,8 +122,7 @@ blender-scene-generator/
 ├── static/
 │   └── index.html            # single-page UI (SVG graph + review controls)
 ├── blender_scene/tests/      # unit tests
-└── docs/
-    └── packaging.md          # distribution design
+└── examples/                 # scene description examples
 ```
 
 ## Tests
@@ -135,7 +134,3 @@ pytest
 ```
 
 The suite includes unit tests for the bridge, tools, workflow, hooks, and server routes.
-
-## Packaging & distribution
-
-See [docs/packaging.md](docs/packaging.md) for the full design: how the closed-source runtime (`llm_harness_py`) is distributed as prebuilt wheels and how this open-source repo consumes them.
