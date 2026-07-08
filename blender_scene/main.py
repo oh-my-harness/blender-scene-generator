@@ -216,6 +216,9 @@ def _run_scene_workflow(state, description: str) -> None:
     judge = create_blender_judge()
 
     engine = lh.WorkflowEngine(workflow, provider, model, judge._judge)
+    # glm-5.2 的 thinking 很长（~8K token），默认 max_tokens=8192 不够，
+    # thinking 还没结束就触发 MaxTokens 截断，导致 text content 和 tool_call 无法输出。
+    engine = engine.with_max_tokens(16384)
 
     # ── Hooks: non-empty response + steer on empty ──
     should_stop_hook, before_run_hook = create_non_empty_response_hooks()
