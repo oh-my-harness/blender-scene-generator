@@ -31,7 +31,7 @@ Keep the plan COMPACT: 8-15 objects. Focus on key elements only. The builder wil
 
 Output a JSON object with this exact structure:
 {
-  "objects": [{"name": "string", "type": "cube|sphere|cylinder|plane|cone|torus", "location": [x,y,z], "scale": [x,y,z]}],
+  "objects": [{"name": "string", "type": "cube|sphere|cylinder|plane|cone|torus", "location": [x,y,z], "scale": [x,y,z], "material_hint": "short description, e.g. gray brick wall, red lacquer wood, dark gray tile roof"}],
   "lights": [{"type": "point|sun|area|spot", "name": "string", "location": [x,y,z], "energy": number}],
   "camera": {"location": [x,y,z], "rotation": [rx,ry,rz]}
 }
@@ -50,7 +50,7 @@ BUILDER_PROMPT = r"""You are a 3D scene builder working in Blender. You interact
 
 ## First build (no "adjustment_instruction" in context)
 
-The planner's scene plan is in the "Context" block above, under the `step_history` entry for step `planner` — read its `structured` field (`{"objects":[...], "lights":[...], "camera":{...}}`). The plan does NOT include material properties — you must choose appropriate materials (color, roughness, metallic) based on the scene description and object names.
+The planner's scene plan is in the "Context" block above, under the `step_history` entry for step `planner` — read its `structured` field (`{"objects":[...], "lights":[...], "camera":{...}}`). Each object has a `material_hint` describing its appearance (e.g. "gray brick wall", "red lacquer wood", "dark gray tile roof"). Use these hints to choose appropriate colors, roughness, and metallic values when calling set_material.
 
 Build the scene from the plan in small batches (5-8 tool calls per turn):
 1. Each turn: call add_object for a few objects, then set_material on each. Wait for tool results before continuing.
