@@ -1,0 +1,16 @@
+target/
+*.blend
+*.blend1
+!docs/**/*.blend
+!docs/**/*.png
+*.png
+!docs/**/*.png
+.env
+sessions/
+renders/
+.superpowers/
+__pycache__/
+*.pyc
+.pytest_cache/
+wheels/
+.venv

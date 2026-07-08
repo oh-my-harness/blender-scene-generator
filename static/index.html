@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blender Scene Generator</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; height: 100vh; }
+        #left { width: 50%; padding: 20px; overflow-y: auto; border-right: 1px solid #333; }
+        #right { width: 50%; padding: 20px; overflow-y: auto; }
+        h1 { margin-bottom: 16px; font-size: 1.4rem; }
+        h2 { margin: 16px 0 8px; font-size: 1.1rem; color: #8af; }
+        textarea { width: 100%; height: 80px; background: #16213e; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 8px; font-family: inherit; resize: vertical; }
+        button { background: #0f3460; color: #eee; border: none; border-radius: 4px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; margin: 8px 8px 0 0; }
+        button:hover { background: #1a4a7a; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        button.pass { background: #1b5e20; }
+        button.fail { background: #b71c1c; }
+        #workflow-svg { width: 100%; height: 200px; margin: 16px 0; }
+        .node { fill: #16213e; stroke: #555; stroke-width: 2; }
+        .node.active { fill: #0f3460; stroke: #8af; }
+        .node.done { fill: #1b5e20; stroke: #4caf50; }
+        .edge { stroke: #444; stroke-width: 2; fill: none; }
+        .edge.active { stroke: #8af; }
+        .node-label { fill: #eee; font-size: 12px; text-anchor: middle; }
+
+        /* Event stream */
+        #events { list-style: none; font-size: 0.85rem; }
+        #events li { padding: 6px 0; border-bottom: 1px solid #222; font-family: monospace; }
+        .event-StepStarted { color: #8af; }
+        .event-StepFinished { color: #4caf50; }
+        .event-Paused { color: #ff9800; }
+        .event-Resumed { color: #8bc34a; }
+        .event-Failed { color: #f44336; }
+        .event-meta { color: #888; font-size: 0.8rem; margin-left: 8px; }
+        .event-output { color: #ccc; font-size: 0.8rem; margin-top: 4px; padding: 6px 8px; background: #0a0a1a; border-radius: 4px; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+
+        /* Step detail cards */
+        .step-card { margin: 8px 0; padding: 12px; background: #16213e; border-radius: 8px; border-left: 3px solid #555; }
+        .step-card.active { border-left-color: #8af; }
+        .step-card.done { border-left-color: #4caf50; }
+        .step-card-header { display: flex; justify-content: space-between; align-items: center; }
+        .step-card-title { font-weight: bold; font-size: 0.9rem; }
+        .step-card-status { font-size: 0.75rem; color: #888; }
+        .step-card-body { margin-top: 8px; font-size: 0.8rem; color: #ccc; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        .step-card-meta { font-size: 0.75rem; color: #888; margin-top: 4px; }
+
+        /* Step progress (live tool calls) */
+        .step-card-progress { margin-top: 8px; font-size: 0.78rem; font-family: monospace; }
+        .progress-item { padding: 2px 0; color: #aaa; border-left: 2px solid #444; padding-left: 8px; margin: 2px 0; }
+        .progress-item.active { color: #8af; border-left-color: #8af; }
+        .progress-item.ok { color: #4caf50; border-left-color: #4caf50; }
+        .progress-item.err { color: #f44336; border-left-color: #f44336; }
+
+        #review-section { display: none; margin: 16px 0; padding: 16px; background: #16213e; border-radius: 8px; }
+        #review-section.active { display: block; }
+        #render-img { max-width: 100%; margin-top: 16px; border-radius: 8px; }
+        #review-summary { margin: 8px 0; padding: 8px; background: #0a0a1a; border-radius: 4px; font-size: 0.85rem; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div id="left">
+        <h1>Blender Scene Generator</h1>
+
+        <h2>Scene Description</h2>
+        <textarea id="description" placeholder="e.g. A wooden desk with a glass cup and a book, warm lighting"></textarea>
+        <button id="submit-btn" onclick="submitTask()">Generate Scene</button>
+
+        <h2>Workflow</h2>
+        <svg id="workflow-svg" viewBox="0 0 560 150">
+            <!-- Edges -->
+            <line class="edge" id="edge-p-b" x1="60" y1="40" x2="140" y2="40" />
+            <line class="edge" id="edge-b-r" x1="220" y1="40" x2="290" y2="40" />
+            <line class="edge" id="edge-r-rn" x1="370" y1="40" x2="440" y2="40" />
+            <line class="edge" id="edge-rn-w" x1="480" y1="40" x2="500" y2="40" />
+            <!-- Loop back: wait_for_adjust → builder -->
+            <path class="edge" id="edge-w-b" d="M 520 60 Q 520 110 180 110 Q 180 80 180 60" fill="none" stroke-dasharray="5,3" />
+            <!-- Rework: reviewer → builder -->
+            <path class="edge" id="edge-r-b" d="M 330 60 Q 330 95 180 95 Q 180 80 180 60" fill="none" stroke-dasharray="5,3" />
+            <!-- Nodes -->
+            <g>
+                <rect class="node" id="node-planner" x="10" y="20" width="100" height="40" rx="8" />
+                <text class="node-label" x="60" y="45">Planner</text>
+            </g>
+            <g>
+                <rect class="node" id="node-builder" x="140" y="20" width="80" height="40" rx="8" />
+                <text class="node-label" x="180" y="45">Builder</text>
+            </g>
+            <g>
+                <rect class="node" id="node-reviewer" x="290" y="20" width="80" height="40" rx="8" />
+                <text class="node-label" x="330" y="45">Reviewer</text>
+            </g>
+            <g>
+                <rect class="node" id="node-renderer" x="440" y="20" width="40" height="40" rx="8" />
+                <text class="node-label" x="460" y="45">Render</text>
+            </g>
+            <g>
+                <rect class="node" id="node-wait_for_adjust" x="500" y="20" width="50" height="40" rx="8" />
+                <text class="node-label" x="525" y="45">Wait</text>
+            </g>
+        </svg>
+
+        <h2>Step Details</h2>
+        <div id="step-details"></div>
+
+        <h2>Review</h2>
+        <div id="review-section">
+            <div id="review-summary"></div>
+            <textarea id="feedback" placeholder="Feedback (optional if approved)"></textarea>
+            <br>
+            <button class="pass" onclick="submitReview(true)">Approve</button>
+            <button class="fail" onclick="submitReview(false)">Reject</button>
+        </div>
+
+        <h2>Render Result</h2>
+        <img id="render-img" style="display:none" />
+
+        <h2>Adjust Scene</h2>
+        <div id="adjust-section" style="display:none">
+            <textarea id="adjust-instruction" placeholder="e.g. Make the sofa red, add a lamp on the table"></textarea>
+            <button id="adjust-btn" onclick="submitAdjust()">Apply Adjustment</button>
+        </div>
+    </div>
+
+    <div id="right">
+        <h2>Event Stream</h2>
+        <ul id="events"></ul>
+    </div>
+
+    <script>
+        let ws = null;
+        // Monotonic counter so repeated step executions (e.g. builder on
+        // adjust rounds) get unique card ids. getElementById returns only
+        // the first match when ids collide, which left later cards stuck on
+        // "running..." forever.
+        let stepRound = 0;
+        // Map stepId → latest card id suffix, so updateStepCard and
+        // appendStepProgress target the most recent card for that step.
+        const latestCardId = {};
+        const stepOrder = ['planner', 'builder', 'reviewer', 'renderer', 'wait_for_adjust'];
+        const stepNames = {
+            planner: 'Planner',
+            builder: 'Builder',
+            reviewer: 'Reviewer',
+            renderer: 'Renderer',
+            wait_for_adjust: 'Wait for Adjust',
+        };
+
+        function submitTask() {
+            const desc = document.getElementById('description').value.trim();
+            if (!desc) return;
+
+            document.getElementById('submit-btn').disabled = true;
+            document.getElementById('events').innerHTML = '';
+            document.getElementById('step-details').innerHTML = '';
+            resetNodes();
+
+            fetch('/api/task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description: desc }),
+            }).then(resp => {
+                if (resp.status === 409) {
+                    alert('A task is already running. Wait for it to finish.');
+                    document.getElementById('submit-btn').disabled = false;
+                } else if (resp.ok) {
+                    connectWS();
+                } else {
+                    alert('Failed to start task');
+                    document.getElementById('submit-btn').disabled = false;
+                }
+            });
+        }
+
+        function connectWS() {
+            if (ws && ws.readyState === WebSocket.OPEN) return;
+            ws = new WebSocket('ws://' + location.host + '/ws');
+            ws.onmessage = (ev) => {
+                const event = JSON.parse(ev.data);
+                handleEvent(event);
+            };
+            ws.onclose = () => {
+                document.getElementById('submit-btn').disabled = false;
+            };
+        }
+
+        function handleEvent(event) {
+            const list = document.getElementById('events');
+            const li = document.createElement('li');
+            const ts = new Date().toLocaleTimeString();
+
+            if (event.StepStarted) {
+                const stepId = event.StepStarted.step_id;
+                const stepName = event.StepStarted.step_name || stepNames[stepId] || stepId;
+                li.textContent = `[${ts}] ▶ ${stepName}`;
+                li.className = 'event-StepStarted';
+                setActiveNode(stepId);
+                if (stepId === 'wait_for_adjust') {
+                    showAdjustSection();
+                }
+                addStepCard(stepId, stepName);
+            } else if (event.StepFinished) {
+                const stepId = event.StepFinished.step_id;
+                const stepName = stepNames[stepId] || stepId;
+                const output = event.StepFinished.output || '';
+                const toolCount = event.StepFinished.tool_calls_count || 0;
+                const cost = event.StepFinished.cost;
+                const structured = event.StepFinished.structured;
+
+                li.textContent = `[${ts}] ✔ ${stepName}`;
+                if (toolCount > 0) {
+                    li.innerHTML += `<span class="event-meta">${toolCount} tool calls</span>`;
+                }
+                if (cost && cost.input_tokens > 0) {
+                    li.innerHTML += `<span class="event-meta">${cost.input_tokens}↓ ${cost.output_tokens}↑ tokens</span>`;
+                }
+                li.className = 'event-StepFinished';
+
+                // Show a truncated output preview in the event stream
+                if (output && output.trim()) {
+                    const preview = output.length > 200 ? output.slice(0, 200) + '...' : output;
+                    const div = document.createElement('div');
+                    div.className = 'event-output';
+                    div.textContent = preview;
+                    li.appendChild(div);
+                }
+
+                setDoneNode(stepId);
+                updateStepCard(stepId, 'done', output, toolCount, cost, structured);
+
+                if (stepId === 'renderer') {
+                    const imagePath = structured?.image_path;
+                    if (imagePath) {
+                        const filename = imagePath.split('/').pop();
+                        loadRenderImage(filename);
+                    }
+                }
+                if (stepId === 'wait_for_adjust') {
+                    hideAdjustSection();
+                }
+            } else if (event.Paused) {
+                li.textContent = `[${ts}] ⏸ Paused: ${event.Paused.reason}`;
+                li.className = 'event-Paused';
+                showReviewSection();
+            } else if (event.Resumed) {
+                li.textContent = `[${ts}] ▶ Resumed`;
+                li.className = 'event-Resumed';
+                hideReviewSection();
+            } else if (event.Failed) {
+                li.textContent = `[${ts}] ✗ Failed: ${event.Failed.error}`;
+                li.className = 'event-Failed';
+                document.getElementById('submit-btn').disabled = false;
+            } else if (event.Cancelled) {
+                li.textContent = `[${ts}] ✗ Cancelled: ${event.Cancelled.reason}`;
+                li.className = 'event-Failed';
+                document.getElementById('submit-btn').disabled = false;
+            } else if (event.StepProgress) {
+                // StepProgress is high-frequency — update the step card's
+                // progress area, don't add to the event stream list.
+                appendStepProgress(event.StepProgress.step_id, event.StepProgress.progress);
+                return;
+            } else {
+                li.textContent = `[${ts}] ${JSON.stringify(event)}`;
+            }
+
+            list.prepend(li);
+
+            // Cap event list length to prevent unbounded growth.
+            while (list.children.length > 50) {
+                list.removeChild(list.lastChild);
+            }
+        }
+
+        function addStepCard(stepId, stepName) {
+            const container = document.getElementById('step-details');
+            const round = stepRound++;
+            const cardId = `card-${stepId}-${round}`;
+            latestCardId[stepId] = cardId;
+            const card = document.createElement('div');
+            card.className = 'step-card active';
+            card.id = cardId;
+            card.dataset.stepId = stepId;
+            card.innerHTML = `
+                <div class="step-card-header">
+                    <span class="step-card-title">${stepName}</span>
+                    <span class="step-card-status">running...</span>
+                </div>
+                <div class="step-card-progress" id="progress-${stepId}-${round}"></div>
+            `;
+            container.appendChild(card);
+        }
+        /// Update a step card's progress area with a live tool-call event.
+        /// Keeps only the last 5 progress items to avoid unbounded growth.
+        function appendStepProgress(stepId, progress) {
+            const cardId = latestCardId[stepId];
+            if (!cardId) return;
+            const progressDiv = document.querySelector(`#${cardId} .step-card-progress`);
+            if (!progressDiv) return;
+
+            const item = document.createElement('div');
+            item.className = 'progress-item active';
+
+            const type = progress.type;
+            if (type === 'tool_call_start') {
+                item.textContent = `→ ${progress.name}(...)`;
+            } else if (type === 'tool_call_end') {
+                item.textContent = `  args: ${JSON.stringify(progress.args).slice(0, 120)}`;
+            } else if (type === 'tool_execution_start') {
+                item.textContent = `  executing ${progress.tool_name}...`;
+            } else if (type === 'tool_execution_end') {
+                // Update the matching tool_call_start item instead of adding a new one.
+                const items = progressDiv.querySelectorAll('.progress-item');
+                if (items.length > 0) {
+                    const last = items[items.length - 1];
+                    if (progress.ok) {
+                        last.className = 'progress-item ok';
+                    } else {
+                        last.className = 'progress-item err';
+                        last.textContent += ` ✗ ${progress.error || 'failed'}`;
+                    }
+                }
+                return; // Don't add a new item for execution end.
+            } else if (type === 'turn_end') {
+                item.textContent = `── turn ${progress.index} end ──`;
+                item.className = 'progress-item';
+            } else if (type === 'message_end') {
+                // For tool-less steps (planner), this is the only progress signal.
+                const kind = progress.kind || 'final_answer';
+                item.textContent = kind === 'progress' ? '✎ generating (intermediate)...' : '✎ response ready';
+                item.className = kind === 'progress' ? 'progress-item active' : 'progress-item ok';
+            } else {
+                return;
+            }
+
+            progressDiv.appendChild(item);
+
+            // Keep only the last 5 items.
+            while (progressDiv.children.length > 5) {
+                progressDiv.removeChild(progressDiv.firstChild);
+            }
+        }
+
+        function updateStepCard(stepId, status, output, toolCount, cost, structured) {
+            const cardId = latestCardId[stepId];
+            const card = cardId ? document.getElementById(cardId) : null;
+            if (!card) return;
+            card.className = `step-card ${status}`;
+            const statusText = status === 'done' ? '✓ complete' : status;
+            let metaParts = [];
+            if (toolCount > 0) metaParts.push(`${toolCount} tool calls`);
+            if (cost && cost.input_tokens > 0) metaParts.push(`${cost.input_tokens}↓ ${cost.output_tokens}↑ tokens`);
+            let bodyHtml = '';
+            if (output && output.trim()) {
+                bodyHtml += `<div class="step-card-body">${escapeHtml(output)}</div>`;
+            }
+            if (structured) {
+                bodyHtml += `<div class="step-card-meta">structured: ${escapeHtml(JSON.stringify(structured))}</div>`;
+            }
+            // Preserve existing progress area.
+            const progressHtml = card.querySelector('.step-card-progress')?.outerHTML || '';
+            card.innerHTML = `
+                <div class="step-card-header">
+                    <span class="step-card-title">${stepNames[stepId] || stepId}</span>
+                    <span class="step-card-status">${statusText}${metaParts.length ? ' · ' + metaParts.join(' · ') : ''}</span>
+                </div>
+                ${bodyHtml}
+                ${progressHtml}
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function setActiveNode(stepId) {
+            const node = document.getElementById('node-' + stepId);
+            if (node) node.classList.add('active');
+        }
+
+        function setDoneNode(stepId) {
+            const node = document.getElementById('node-' + stepId);
+            if (node) {
+                node.classList.remove('active');
+                node.classList.add('done');
+            }
+        }
+
+        function resetNodes() {
+            stepOrder.forEach(id => {
+                const node = document.getElementById('node-' + id);
+                if (node) {
+                    node.classList.remove('active', 'done');
+                }
+            });
+        }
+
+        function showReviewSection() {
+            document.getElementById('review-section').classList.add('active');
+        }
+
+        function hideReviewSection() {
+            document.getElementById('review-section').classList.remove('active');
+        }
+
+        function submitReview(passed) {
+            const feedback = document.getElementById('feedback').value;
+            fetch('/api/review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passed, feedback }),
+            }).then(resp => {
+                if (resp.ok) {
+                    hideReviewSection();
+                }
+            });
+        }
+
+        function loadRenderImage(filename) {
+            const img = document.getElementById('render-img');
+            img.src = '/api/render/' + filename + '?' + Date.now();
+            img.style.display = 'block';
+            document.getElementById('submit-btn').disabled = false;
+        }
+
+        function showAdjustSection() {
+            document.getElementById('adjust-section').style.display = 'block';
+            document.getElementById('adjust-btn').disabled = false;
+        }
+
+        function hideAdjustSection() {
+            document.getElementById('adjust-section').style.display = 'none';
+        }
+
+        function submitAdjust() {
+            const instruction = document.getElementById('adjust-instruction').value.trim();
+            if (!instruction) return;
+
+            document.getElementById('adjust-btn').disabled = true;
+
+            fetch('/api/adjust', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ instruction }),
+            }).then(resp => {
+                if (resp.status === 409) {
+                    alert('No active scene. Generate a scene first.');
+                    document.getElementById('adjust-btn').disabled = false;
+                } else if (!resp.ok) {
+                    alert('Failed to submit adjustment');
+                    document.getElementById('adjust-btn').disabled = false;
+                }
+                // On success, the WS is still connected to the same engine.
+                // Events will flow as the builder runs.
+            });
+        }
+    </script>
+</body>
+</html>

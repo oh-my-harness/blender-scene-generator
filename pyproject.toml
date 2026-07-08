@@ -1,0 +1,33 @@
+[project]
+name = "blender-scene-generator"
+version = "0.1.0"
+description = "AI agent that turns natural language descriptions into 3D scenes in Blender."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "llm-harness-py>=0.2.0",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
+    "websockets>=12.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.uv]
+# The runtime SDK (llm-harness-py) is a closed-source PyO3 extension.
+# Prebuilt wheels are published to the public llm-harness-py-wheels repo:
+#   https://github.com/oh-my-harness/llm-harness-py-wheels
+find-links = [
+    "https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["blender_scene"]
