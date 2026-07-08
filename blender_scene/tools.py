@@ -281,17 +281,21 @@ class BlenderTool:
     因此用此包装类补充这些属性。
     """
 
-    __slots__ = ("name", "description", "_tool")
+    __slots__ = ("name", "description", "_tool", "_callback")
 
-    def __init__(self, name: str, description: str, tool: Any):
+    def __init__(self, name: str, description: str, tool: Any, callback):
         self.name = name
         self.description = description
         self._tool = tool
+        self._callback = callback
 
-    @property
-    def drive(self):
-        """Test-only: drive the tool directly. Not available on production wheels."""
-        return self._tool.drive
+    def drive(self, args):
+        """Test-only: drive the tool directly by invoking its callback.
+
+        Production wheels lack Tool.drive (gated behind test-utils feature),
+        so we call the Python callback directly instead.
+        """
+        return self._callback(args, None)
 
 
 def _make_callback(bridge: BlenderBridge, action: str, transform_empty: bool):
@@ -329,5 +333,5 @@ def all_blender_tools(bridge: BlenderBridge) -> list[BlenderTool]:
             spec["schema_json"],
             cb,
         )
-        tools.append(BlenderTool(spec["name"], spec["description"], raw_tool))
+        tools.append(BlenderTool(spec["name"], spec["description"], raw_tool, cb))
     return tools

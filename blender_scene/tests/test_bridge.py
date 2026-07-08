@@ -1,4 +1,3 @@
-import asyncio
 import struct
 import json
 import threading
@@ -41,10 +40,8 @@ def test_bridge_send_receives_response():
         assert request["params"]["type"] == "cube"
         return {"ok": True, "data": {"created": "cube_001"}}
     server, thread = start_mock_server(host, port, handler)
-    async def run():
-        bridge = BlenderBridge(host, port)
-        return await bridge.send("add_object", {"type": "cube"})
-    result = asyncio.run(run())
+    bridge = BlenderBridge(host, port)
+    result = bridge.send("add_object", {"type": "cube"})
     assert result == {"created": "cube_001"}
     server.close(); thread.join(timeout=2)
 
@@ -54,13 +51,11 @@ def test_bridge_send_error_response():
     def handler(request):
         return {"ok": False, "error": "object not found"}
     server, thread = start_mock_server(host, port, handler)
-    async def run():
-        bridge = BlenderBridge(host, port)
-        try:
-            await bridge.send("delete_object", {"name": "nonexistent"})
-            return None
-        except Exception as e:
-            return str(e)
-    result = asyncio.run(run())
+    bridge = BlenderBridge(host, port)
+    try:
+        bridge.send("delete_object", {"name": "nonexistent"})
+        result = None
+    except Exception as e:
+        result = str(e)
     assert "object not found" in result
     server.close(); thread.join(timeout=2)

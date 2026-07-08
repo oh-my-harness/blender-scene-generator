@@ -8,7 +8,6 @@ Translates:
 
 工作流定义、judge 和 executor 的 Python 翻译。
 """
-import asyncio
 import datetime
 import logging
 from typing import Any
@@ -199,12 +198,9 @@ class ExecutorWrapper:
     """Wraps an lh.Executor, exposing the raw callback for testing.
 
     The SDK executor callback is synchronous (called via spawn_blocking).
-    For async operations (like bridge.send), the callback uses asyncio.run()
-    internally.
 
     封装 lh.Executor，额外暴露原始回调用于测试。
     SDK 执行器回调是同步的（通过 spawn_blocking 调用）。
-    对于异步操作（如 bridge.send），回调内部使用 asyncio.run()。
     """
 
     __slots__ = ("callback", "_executor")
@@ -314,11 +310,11 @@ def create_render_executor(bridge, output_dir: str):
     """Create a render executor that calls bridge.send("render", ...).
 
     The SDK executor callback is synchronous (runs in spawn_blocking).
-    bridge.send() is async, so we run it via asyncio.run() inside the callback.
+    bridge.send() is synchronous, so we call it directly.
 
     创建一个调用 bridge.send("render", ...) 的渲染执行器。
     SDK 执行器回调是同步的（在 spawn_blocking 中运行）。
-    bridge.send() 是异步的，因此在回调内部通过 asyncio.run() 运行。
+    bridge.send() 是同步的，直接调用即可。
     """
     def executor_cb(ctx: dict) -> dict:
         # Generate a unique output path
@@ -327,11 +323,8 @@ def create_render_executor(bridge, output_dir: str):
 
         logger.info("render_executor: rendering to %s", output_path)
 
-        # Tell Blender to render — bridge.send is async, run via asyncio.run()
-        async def _do_render():
-            return await bridge.send("render", {"output_path": output_path})
-
-        render_result = asyncio.run(_do_render())
+        # Tell Blender to render — bridge.send is sync
+        render_result = bridge.send("render", {"output_path": output_path})
         image_path = render_result.get("image_path", output_path) if render_result else output_path
         logger.info("render_executor: done, image_path=%s", image_path)
 
