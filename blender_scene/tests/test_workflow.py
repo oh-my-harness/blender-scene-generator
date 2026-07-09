@@ -103,7 +103,7 @@ def test_planner_prompt_mentions_json():
 
 
 def test_builder_prompt_mentions_adjustment():
-    assert "adjustment_instruction" in BUILDER_PROMPT
+    assert "wait_for_adjust" in BUILDER_PROMPT
 
 
 def test_reviewer_prompt_mentions_passed():

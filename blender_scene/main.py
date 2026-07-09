@@ -236,7 +236,7 @@ def _run_scene_workflow(state, description: str) -> None:
     state.review_handle = review_handle
 
     # ── Adjust wait executor ──
-    adjust_executor, adjust_handle = create_wait_for_adjust_executor(engine)
+    adjust_executor, adjust_handle = create_wait_for_adjust_executor()
     state.adjust_handle = adjust_handle
 
     # ── Event iterator (for WebSocket) ──

@@ -47,7 +47,7 @@ Call the submit_step_result tool with this JSON as the `result` argument. Do NOT
 
 BUILDER_PROMPT = r"""You are a 3D scene builder working in Blender. You interact with the scene exclusively through tool calls.
 
-## First build (no "adjustment_instruction" in context)
+## First build (when the step_history has no `wait_for_adjust` entry)
 
 The planner's scene plan is in the "Context" block above, under the `step_history` entry for step `planner` — read its `structured` field (`{"objects":[...], "lights":[...], "camera":{...}}`). Each object has a `material_hint` describing its appearance (e.g. "gray brick wall", "red lacquer wood", "dark gray tile roof"). Use these hints to choose appropriate colors, roughness, and metallic values when calling set_material.
 
@@ -67,9 +67,9 @@ When the plan calls for shapes that primitives can't express, use these tools. T
 
 General approach: build complex shapes by combining primitives with boolean_modify, or by extruding custom profiles. Set materials on the resulting objects with set_material as usual.
 
-## Adjustment (when "adjustment_instruction" is present in context)
+## Adjustment (when the step_history contains a `wait_for_adjust` entry)
 
-The user wants to modify the existing scene. Your FIRST tool call MUST be get_scene_state (no arguments) to inspect what objects actually exist (names, transforms, materials, lights). Then use update_object, delete_object, add_object, set_material, add_light, and set_camera to make incremental changes. Do NOT rebuild the scene from scratch — reuse existing object names when updating.
+The user's adjustment instruction is in the "Context" block above — find the `step_history` entry for step `wait_for_adjust` and read its `structured.instruction` field (or its `output`). This is what the user wants changed.
 
 ## When done
 
@@ -379,9 +379,11 @@ def create_wait_for_adjust_executor(engine=None):
     Returns (executor, handle). The executor blocks (sync, in spawn_blocking)
     until handle.submit(instruction) is called from the web server.
 
-    After receiving the instruction, writes it to the workflow context as
-    `adjustment_instruction` so the builder step can read it. Requires the
-    engine reference to call set_context_variable.
+    The instruction is returned via `structured` and `output`, which appear
+    in the step_history summary that the next builder step reads from its
+    "Context" block. We do NOT call engine.set_context_variable() here —
+    that would re-borrow the engine while run() already holds &mut self,
+    causing `RuntimeError: Already mutably borrowed`.
 
     The SDK executor callback is synchronous, so we use queue.Queue for
     cross-thread signaling (submit() is called from the web server thread,
@@ -390,8 +392,10 @@ def create_wait_for_adjust_executor(engine=None):
     创建等待调整的执行器 + 句柄。
     返回 (executor, handle)。执行器阻塞（同步，在 spawn_blocking 中）
     直到 web 服务器调用 handle.submit(instruction)。
-    收到指令后，将其写入工作流上下文（键 `adjustment_instruction`），
-    供 builder 步骤读取。需要 engine 引用以调用 set_context_variable。
+    指令通过 `structured` 和 `output` 返回，进入 step_history 摘要，
+    供随后的 builder 步骤从其 "Context" 块中读取。
+    不在此处调用 engine.set_context_variable()——那会在 run() 已持有
+    &mut self 时再次借用 engine，导致 `RuntimeError: Already mutably borrowed`。
     SDK 执行器回调是同步的，因此使用 queue.Queue 进行跨线程信号传递。
     """
     handle = AdjustHandle()
@@ -403,11 +407,11 @@ def create_wait_for_adjust_executor(engine=None):
         logger.info("wait_for_adjust: blocking until user submits adjustment")
         instruction = handle._queue.get()
         logger.info("wait_for_adjust: received instruction: %s", instruction[:80])
-        # Write the instruction into the workflow context so the builder
-        # step (next after this executor) can read it.
-        # 将指令写入工作流上下文，供随后的 builder 步骤读取。
-        if engine is not None:
-            engine.set_context_variable("adjustment_instruction", instruction)
+        # The instruction is passed via `structured` and `output`, which
+        # the engine records into step_history. The builder step reads it
+        # from the "Context" block (step_history summary).
+        # 指令通过 `structured` 和 `output` 返回，引擎记录到 step_history。
+        # builder 步骤从 "Context" 块（step_history 摘要）中读取。
         return {
             "output": f"adjustment: {instruction}",
             "structured": {"instruction": instruction},
