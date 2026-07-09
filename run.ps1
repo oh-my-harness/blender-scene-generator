@@ -109,35 +109,27 @@ if (-not $BlenderPath -or -not (Test-Path $BlenderPath)) {
     Write-Error "Blender not found. Set BLENDER_PATH in $EnvFile or add blender.exe to PATH."
 }
 
-if (-not $env:OPENAI_API_KEY) {
-    Write-Error "OPENAI_API_KEY not set. Configure it in $EnvFile."
-}
+if (-not $env:LLM_PROVIDER) { $env:LLM_PROVIDER = "openai" }
 
-if (Test-TcpPort -HostName "127.0.0.1" -PortNumber $Port) {
-    Write-Error "Port $Port is already in use. Stop the existing server or pass a different -Port."
-}
-
-if (Test-TcpPort -HostName "127.0.0.1" -PortNumber 9876) {
-    Write-Error "Port 9876 is already in use. Stop the existing Blender addon before running this script."
-}
-
-if (-not (Test-Path $Python)) {
-    $PythonCommand = Get-Command $Python -ErrorAction SilentlyContinue
-    if (-not $PythonCommand) {
-        Write-Error "Python not found: $Python"
+if ($env:LLM_PROVIDER -eq "anthropic") {
+    if (-not $env:ANTHROPIC_API_KEY) {
+        Write-Error "LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY not set. Configure it in $EnvFile."
     }
+    $Model    = if ($env:ANTHROPIC_MODEL)    { $env:ANTHROPIC_MODEL }    else { "claude-sonnet-4-20250514" }
+    $ApiBase  = if ($env:ANTHROPIC_API_BASE) { $env:ANTHROPIC_API_BASE } else { "https://api.anthropic.com" }
+    $Provider = "anthropic"
+} else {
+    if (-not $env:OPENAI_API_KEY) {
+        Write-Error "OPENAI_API_KEY not set. Configure it in $EnvFile (or set LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY)."
+    }
+    $Model    = if ($env:OPENAI_MODEL)    { $env:OPENAI_MODEL }    else { "gpt-4o" }
+    $ApiBase  = if ($env:OPENAI_API_BASE) { $env:OPENAI_API_BASE } else { "https://api.openai.com" }
+    $Provider = "openai"
 }
-
-$Addon = Join-Path $ScriptDir "blender_scene\blender_addon.py"
-$env:BLENDER_PATH = $BlenderPath
-$env:PYTHONPATH = if ($env:PYTHONPATH) { "$env:PYTHONPATH;$ScriptDir" } else { $ScriptDir }
-$env:PYTHONIOENCODING = "utf-8"
-
-$Model = if ($env:OPENAI_MODEL) { $env:OPENAI_MODEL } else { "gpt-4o" }
-$ApiBase = if ($env:OPENAI_API_BASE) { $env:OPENAI_API_BASE } else { "https://api.openai.com" }
 
 Write-Host "Blender:   $BlenderPath"
 Write-Host "Python:    $Python"
+Write-Host "Provider:  $Provider"
 Write-Host "Model:     $Model"
 Write-Host "API base:  $ApiBase"
 Write-Host ""

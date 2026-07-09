@@ -58,7 +58,12 @@ pytest
 
 ## LLM 配置
 
-`.env` 文件配置：`OPENAI_API_KEY`、`OPENAI_API_BASE`、`OPENAI_MODEL`。
+`.env` 文件配置（或环境变量）：
+
+- `LLM_PROVIDER`：`openai`（默认）或 `anthropic`
+- OpenAI 路径：`OPENAI_API_KEY`、`OPENAI_API_BASE`、`OPENAI_MODEL`（默认 `gpt-4o`）
+- Anthropic 路径：`ANTHROPIC_API_KEY`、`ANTHROPIC_API_BASE`、`ANTHROPIC_MODEL`（默认 `claude-sonnet-4-20250514`）
+
 当前使用 `glm-5.2`，地址 `http://api.REDACTED.com/`。
 
 glm-5.2 已知行为：

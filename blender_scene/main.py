@@ -198,17 +198,30 @@ def _run_scene_workflow(state, description: str) -> None:
 
     # ── Build LLM client from env vars ──
     # 从环境变量构建 LLM 客户端
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set")
+    provider_type = os.environ.get("LLM_PROVIDER", "openai").lower()
 
-    model = os.environ.get("OPENAI_MODEL", "gpt-4o")
-    base_url = os.environ.get("OPENAI_API_BASE", "")
-    logger.info("building LLM provider: model=%s base_url=%s", model, base_url or "(default)")
-    provider = lh.create_openai_provider(
-        api_key,
-        base_url=base_url if base_url else None,
-    )
+    if provider_type == "anthropic":
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("ANTHROPIC_API_KEY not set (LLM_PROVIDER=anthropic)")
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+        base_url = os.environ.get("ANTHROPIC_API_BASE", "")
+        logger.info("building LLM provider: anthropic model=%s base_url=%s", model, base_url or "(default)")
+        provider = lh.create_anthropic_provider(
+            api_key,
+            base_url=base_url if base_url else None,
+        )
+    else:
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY not set")
+        model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+        base_url = os.environ.get("OPENAI_API_BASE", "")
+        logger.info("building LLM provider: openai model=%s base_url=%s", model, base_url or "(default)")
+        provider = lh.create_openai_provider(
+            api_key,
+            base_url=base_url if base_url else None,
+        )
 
     # ── Build engine ──
     logger.info("building workflow engine")
@@ -277,17 +290,25 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-
-    # Check OPENAI_API_KEY early — fail fast before starting Blender.
-    # 尽早检查 OPENAI_API_KEY——在启动 Blender 前快速失败。
-    if not os.environ.get("OPENAI_API_KEY", ""):
-        print("✗ OPENAI_API_KEY not set.", file=sys.stderr)
-        print('  export OPENAI_API_KEY="sk-..."', file=sys.stderr)
-        print(
-            "  (also set OPENAI_API_BASE and OPENAI_MODEL if not using OpenAI directly)",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    # Check API key early — fail fast before starting Blender.
+    # 尽早检查 API key——在启动 Blender 前快速失败。
+    provider_type = os.environ.get("LLM_PROVIDER", "openai").lower()
+    if provider_type == "anthropic":
+        if not os.environ.get("ANTHROPIC_API_KEY", ""):
+            print("✗ LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY not set.", file=sys.stderr)
+            print('  export ANTHROPIC_API_KEY="sk-ant-..."', file=sys.stderr)
+            print('  (also set ANTHROPIC_MODEL and ANTHROPIC_API_BASE if needed)', file=sys.stderr)
+            sys.exit(1)
+    else:
+        if not os.environ.get("OPENAI_API_KEY", ""):
+            print("✗ OPENAI_API_KEY not set.", file=sys.stderr)
+            print('  export OPENAI_API_KEY="sk-..."', file=sys.stderr)
+            print(
+                "  (also set OPENAI_API_BASE and OPENAI_MODEL if not using OpenAI directly)",
+                file=sys.stderr,
+            )
+            print('  (set LLM_PROVIDER=anthropic to use Anthropic instead)', file=sys.stderr)
+            sys.exit(1)
 
     # If addon is not already listening, start Blender + addon.
     # 如果插件未在监听，则启动 Blender + 插件。

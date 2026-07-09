@@ -35,10 +35,17 @@ User types a description (e.g. "a wooden desk with a glass cup and a book, warm 
 
 1. **Blender 4.x** installed and on your `PATH` (or set `BLENDER_PATH` to the executable).
 2. **Python 3.12** — the runtime SDK (`llm_harness_py`) ships CPython 3.12 wheels. Other versions won't work.
-3. **An OpenAI-compatible API key** exposed via `OPENAI_API_KEY`.
+3. **An LLM API key** — OpenAI-compatible (via `OPENAI_API_KEY`) or Anthropic (via `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`).
 
 ```bash
+# OpenAI (or any OpenAI-compatible endpoint)
 export OPENAI_API_KEY="sk-..."
+# export OPENAI_MODEL="gpt-4o"
+
+# — or Anthropic —
+# export LLM_PROVIDER="anthropic"
+# export ANTHROPIC_API_KEY="sk-ant-..."
+
 # Optional, only if `blender` is not on PATH:
 # export BLENDER_PATH="/Applications/Blender.app/Contents/MacOS/Blender"
 ```

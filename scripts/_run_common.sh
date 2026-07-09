@@ -24,16 +24,32 @@ if ! command -v "$BLENDER_PATH" &>/dev/null && [ ! -x "$BLENDER_PATH" ]; then
     exit 1
 fi
 
-# ── Check OPENAI_API_KEY ──────────────────────────────────────
-if [ -z "${OPENAI_API_KEY:-}" ]; then
-    echo "✗ OPENAI_API_KEY not set. Configure it in $ENV_FILE."
-    exit 1
-fi
-
-echo "✓ Blender:   $BLENDER_PATH"
-echo "✓ Python:    $PYTHON"
-echo "✓ Model:     ${OPENAI_MODEL:-gpt-4o}"
-echo "✓ API base:  ${OPENAI_API_BASE:-https://api.openai.com}"
+# ── Check API key ─────────────────────────────────────────────
+case "${LLM_PROVIDER:-openai}" in
+    anthropic)
+        if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "✗ LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY not set. Configure it in $ENV_FILE."
+            exit 1
+        fi
+        echo "✓ Blender:   $BLENDER_PATH"
+        echo "✓ Python:    $PYTHON"
+        echo "✓ Provider:  anthropic"
+        echo "✓ Model:     ${ANTHROPIC_MODEL:-claude-sonnet-4-20250514}"
+        echo "✓ API base:  ${ANTHROPIC_API_BASE:-https://api.anthropic.com}"
+        ;;
+    openai|*)
+        if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "✗ OPENAI_API_KEY not set. Configure it in $ENV_FILE."
+            echo "  (or set LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY to use Anthropic)"
+            exit 1
+        fi
+        echo "✓ Blender:   $BLENDER_PATH"
+        echo "✓ Python:    $PYTHON"
+        echo "✓ Provider:  openai"
+        echo "✓ Model:     ${OPENAI_MODEL:-gpt-4o}"
+        echo "✓ API base:  ${OPENAI_API_BASE:-https://api.openai.com}"
+        ;;
+esac
 echo ""
 
 # ── Clean previous output ─────────────────────────────────────
