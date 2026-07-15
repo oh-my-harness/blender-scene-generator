@@ -887,13 +887,19 @@
 
                 setActiveNode(stepId);
                 updateTopbarStep(stepId);
-                setStatusBadge('running', 'Running');
 
-                // Initialize center column for this step
-                initCenterForStep(stepId, stepRounds[stepId]);
-
-                if (stepId === 'wait_for_adjust') {
+                // scene_review and wait_for_adjust are executor steps that block on a queue.
+                // The engine reports them as 'running', but they're effectively paused.
+                // Show the appropriate UI immediately instead of waiting for a 'paused' event.
+                if (stepId === 'scene_review') {
+                    setStatusBadge('paused', 'Paused');
+                    showReviewCard('scene_review');
+                } else if (stepId === 'wait_for_adjust') {
+                    setStatusBadge('paused', 'Waiting');
                     showAdjustSection();
+                } else {
+                    setStatusBadge('running', 'Running');
+                    initCenterForStep(stepId, stepRounds[stepId]);
                 }
             } else if (type === 'step_finished') {
                 const stepId = event.step_id;
@@ -1507,12 +1513,18 @@
                         } else {
                             showReviewCard('reviewer');
                         }
+                    } else if (currentStep === 'scene_review') {
+                        // scene_review executor blocks on a queue — engine reports 'running'
+                        // but it's effectively paused waiting for human approval.
+                        setStatusBadge('paused', 'Paused');
+                        showReviewCard('scene_review');
+                    } else if (currentStep === 'wait_for_adjust') {
+                        // wait_for_adjust executor also blocks on a queue.
+                        setStatusBadge('paused', 'Waiting');
+                        showAdjustSection();
                     } else {
                         setStatusBadge('running', 'Running');
-                        // Initialize center column for the running step
-                        if (currentStep !== 'scene_review') {
-                            initCenterForStep(currentStep, stepRounds[currentStep]);
-                        }
+                        initCenterForStep(currentStep, stepRounds[currentStep]);
                     }
                 }
 
