@@ -197,6 +197,7 @@ def _run_scene_workflow(state, description: str, skip_refine: bool = False) -> N
         OBJECT_PLANNER_SYSTEM,
         LIGHTING_PLANNER_SYSTEM,
         BUILDER_SYSTEM,
+        BUILDER_REVIEWER_SYSTEM,
         MATERIAL_ARTIST_SYSTEM,
         LIGHTING_DESIGNER_SYSTEM,
         REVIEWER_SYSTEM,
@@ -250,6 +251,7 @@ def _run_scene_workflow(state, description: str, skip_refine: bool = False) -> N
     engine = engine.with_step_plugin("object_planner", create_system_prompt_plugin(OBJECT_PLANNER_SYSTEM))
     engine = engine.with_step_plugin("builder", create_system_prompt_plugin(BUILDER_SYSTEM))
     engine = engine.with_step_plugin("lighting_planner", create_system_prompt_plugin(LIGHTING_PLANNER_SYSTEM))
+    engine = engine.with_step_plugin("builder_reviewer", create_system_prompt_plugin(BUILDER_REVIEWER_SYSTEM))
     engine = engine.with_step_plugin("material_artist", create_system_prompt_plugin(MATERIAL_ARTIST_SYSTEM))
     engine = engine.with_step_plugin("lighting_designer", create_system_prompt_plugin(LIGHTING_DESIGNER_SYSTEM))
     engine = engine.with_step_plugin("reviewer", create_system_prompt_plugin(REVIEWER_SYSTEM))

@@ -788,6 +788,7 @@
             scene_analyst:      { name: 'Scene Analyst',      icon: '🔍', desc: '分析场景描述' },
             object_planner:     { name: 'Object Planner',     icon: '📦', desc: '规划物体清单' },
             builder:            { name: 'Builder',            icon: '🔨', desc: '构建 3D 场景' },
+            builder_reviewer:   { name: 'Builder Reviewer',   icon: '🔍', desc: '审阅建模质量' },
             lighting_planner:   { name: 'Lighting Planner',   icon: '💡', desc: '规划灯光与相机' },
             material_artist:    { name: 'Material Artist',    icon: '🎨', desc: '添加材质' },
             lighting_designer:  { name: 'Lighting Designer',  icon: '🌟', desc: '布置灯光' },
@@ -795,7 +796,7 @@
             renderer:           { name: 'Renderer',           icon: '📸', desc: '渲染场景' },
             wait_for_adjust:    { name: 'Wait',               icon: '⏸️', desc: '等待调整指令' },
         };
-        const stepOrder = ['scene_refiner', 'scene_review', 'scene_analyst', 'object_planner', 'builder',
+        const stepOrder = ['scene_refiner', 'scene_review', 'scene_analyst', 'object_planner', 'builder', 'builder_reviewer',
                            'lighting_planner', 'material_artist', 'lighting_designer', 'reviewer', 'renderer', 'wait_for_adjust'];
 
         // ===== Init: build left column flowchart =====

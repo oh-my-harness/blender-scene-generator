@@ -1,9 +1,9 @@
-"""Workflow definition, judge, and executors — 10+1 step expansion.
+"""Workflow definition, judge, and executors — 11+1 step expansion.
 
 Expanded topology with scene refinement, human approval, batch planning loop,
-and professional division of labor (builder / material_artist / lighting_designer).
+builder quality review, and professional division of labor (builder / material_artist / lighting_designer).
 
-工作流定义、judge 和 executor —— 10+1 步扩展版本。
+工作流定义、judge 和 executor —— 11+1 步扩展版本。
 """
 import datetime
 import logging
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 # ════════════════════════════════════════════════════════════════
-# Prompts — 8 LLM steps
-# 提示词 —— 8 个 LLM 步骤
+# Prompts — 9 LLM steps
+# 提示词 —— 9 个 LLM 步骤
 # ════════════════════════════════════════════════════════════════
 
 SCENE_REFINER_PROMPT = r"""你是一名 3D 场景细化师。请阅读上方"Context"块中的用户场景描述（键 `user_description`），然后将其细化为一段详细、生动的描述，供专业 3D 美术师构建场景。
@@ -133,6 +133,21 @@ REVIEWER_PROMPT = r"""你是一名场景审查员。你仅通过工具调用来�
 - 如果存在问题：passed=false, issues=[需要修复的问题列表]
 """
 
+BUILDER_REVIEWER_PROMPT = r"""你是一名建模审查员，在 Blender 中工作。你仅通过工具调用来操作场景。
+
+调用 get_scene_state（无需参数）检查场景。结果包含每个物体的：名称、类型、位置、缩放、旋转、材质和灯光字段。
+
+你只关注建模质量，不关注材质和灯光：
+- 物体是否重叠或悬浮
+- 物体尺寸是否合理（与场景中其他物体相比）
+- 是否有明显缺失的物体（与规划不符）
+- 物体放置是否符合场景描述
+
+然后调用 submit_step_result，传入：{"passed": true/false, "issues": ["问题1", "问题2"]}
+- 如果建模质量合格：passed=true, issues=[]
+- 如果存在建模问题：passed=false, issues=[需要修复的问题列表]
+"""
+
 
 # ── System prompts (per-step) ─────────────────────────────────
 
@@ -151,6 +166,7 @@ MATERIAL_ARTIST_SYSTEM = "你是一名专业的 Blender 材质师。你根据材
 LIGHTING_DESIGNER_SYSTEM = "你是一名专业的 Blender 灯光师。你根据灯光计划放置灯光和设置相机。你理解灯光类型（点光、太阳光、面光、聚光灯）、能量级别、色温和相机构图。"
 
 REVIEWER_SYSTEM = "你是一名专业的 3D 场景审查员。你通过查询场景状态来检查 Blender 场景，评估物体放置、材质、灯光和相机构图。你简洁地报告问题并做出通过/不通过的判定。"
+BUILDER_REVIEWER_SYSTEM = "你是一名专业的 3D 建模审查员。你通过查询场景状态来检查 Blender 场景中的建模质量——物体放置、尺寸、重叠、缺失。你不关注材质和灯光，那些由后续步骤处理。你简洁地报告问题并做出通过/不通过的判定。"
 
 
 # ════════════════════════════════════════════════════════════════
@@ -197,22 +213,29 @@ def _reviewer_tools() -> list[str]:
     return ["get_scene_state"]
 
 
+def _builder_reviewer_tools() -> list[str]:
+    """Builder reviewer tools: inspection only."""
+    return ["get_scene_state"]
+
+
 # ════════════════════════════════════════════════════════════════
-# build_workflow — workflow topology (10+1 steps, 14 edges)
+# build_workflow — workflow topology (11+1 steps, 16 edges)
 # 工作流拓扑
 # ════════════════════════════════════════════════════════════════
 
 def build_workflow() -> dict:
-    """Build the expanded 10+1 step workflow.
+    """Build the expanded 11+1 step workflow.
 
-    构建扩展的 10+1 步工作流。
+    构建扩展的 11+1 步工作流。
 
     Topology:
       scene_refiner → scene_review → scene_analyst → object_planner
         object_planner → builder (has_more=true, batch loop forward)
         object_planner → lighting_planner (has_more=false, batch done)
         builder → object_planner (batch loop back, has_more=true)
-        builder → material_artist (batch done, has_more=false)
+        builder → builder_reviewer (batch done, has_more=false)
+        builder_reviewer → lighting_planner (passed)
+        builder_reviewer → object_planner (failed, re-plan)
       lighting_planner → material_artist → lighting_designer → reviewer
         reviewer → renderer (passed)
         reviewer → material_artist (failed, rework)
@@ -226,6 +249,7 @@ def build_workflow() -> dict:
             {"id": "scene_analyst", "name": "Scene Analyst", "prompt": SCENE_ANALYST_PROMPT, "allowed_tools": []},
             {"id": "object_planner", "name": "Object Planner", "prompt": OBJECT_PLANNER_PROMPT, "allowed_tools": []},
             {"id": "builder", "name": "Builder", "prompt": BUILDER_PROMPT, "allowed_tools": _builder_tools()},
+            {"id": "builder_reviewer", "name": "Builder Reviewer", "prompt": BUILDER_REVIEWER_PROMPT, "allowed_tools": _builder_reviewer_tools()},
             {"id": "lighting_planner", "name": "Lighting Planner", "prompt": LIGHTING_PLANNER_PROMPT, "allowed_tools": []},
             {"id": "material_artist", "name": "Material Artist", "prompt": MATERIAL_ARTIST_PROMPT, "allowed_tools": _material_artist_tools()},
             {"id": "lighting_designer", "name": "Lighting Designer", "prompt": LIGHTING_DESIGNER_PROMPT, "allowed_tools": _lighting_designer_tools()},
@@ -240,9 +264,12 @@ def build_workflow() -> dict:
             {"from": "scene_analyst", "to": "object_planner"},
             # object_planner → builder (always, builder handles batch loop)
             {"from": "object_planner", "to": "builder"},
-            # builder → object_planner (batch loop back) or lighting_planner (batch done)
+            # builder → object_planner (batch loop back) or builder_reviewer (batch done)
             {"from": "builder", "to": "object_planner"},
-            {"from": "builder", "to": "lighting_planner"},
+            {"from": "builder", "to": "builder_reviewer"},
+            # builder_reviewer → lighting_planner (passed) or object_planner (failed, re-plan)
+            {"from": "builder_reviewer", "to": "lighting_planner"},
+            {"from": "builder_reviewer", "to": "object_planner"},
             {"from": "lighting_planner", "to": "material_artist"},
             {"from": "material_artist", "to": "lighting_designer"},
             {"from": "lighting_designer", "to": "reviewer"},
@@ -319,7 +346,7 @@ def create_blender_judge(skip_refine: bool = False):
     - builder_count: number of builder executions (for rework limit)
     - has_more: cached from object_planner's structured output, used to
       route builder back to object_planner (batch loop) or forward to
-      material_artist (batch done).
+      builder_reviewer (batch done).
 
     创建带批量循环状态的 Blender 工作流 judge。
     """
@@ -357,16 +384,26 @@ def create_blender_judge(skip_refine: bool = False):
             has_more = (structured or {}).get("has_more", False)
             state["has_more"] = bool(has_more)
             # Always go to builder first — builder will route back to
-            # object_planner if has_more, or forward to material_artist.
+            # object_planner if has_more, or forward to builder_reviewer.
             result = "to:builder"
 
         elif step_id == "builder":
             # Batch loop: if has_more, go back to object_planner for next batch;
-            # else forward to lighting_planner (which precedes material_artist).
+            # else forward to builder_reviewer to check modeling quality.
             if state["has_more"]:
                 result = "to:object_planner"
             else:
+                result = "to:builder_reviewer"
+
+        elif step_id == "builder_reviewer":
+            # If modeling passes, proceed to lighting_planner.
+            # If fails, go back to object_planner to re-plan.
+            if review_passed():
                 result = "to:lighting_planner"
+            elif builder_under_limit():
+                result = "to:object_planner"
+            else:
+                result = "fail:builder rework limit reached"
 
         elif step_id == "lighting_planner":
             result = "to:material_artist"

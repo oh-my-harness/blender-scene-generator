@@ -13,6 +13,8 @@ import pytest
 from blender_scene.workflow import (
     ALL_TOOLS,
     BUILDER_PROMPT,
+    BUILDER_REVIEWER_PROMPT,
+    BUILDER_REVIEWER_SYSTEM,
     BUILDER_SYSTEM,
     LIGHTING_DESIGNER_PROMPT,
     LIGHTING_DESIGNER_SYSTEM,
@@ -40,12 +42,12 @@ from blender_scene.bridge import BlenderBridge
 
 # ── build_workflow ─────────────────────────────────────────────
 
-def test_build_workflow_has_11_steps():
+def test_build_workflow_has_12_steps():
     wf = build_workflow()
     step_ids = [s["id"] for s in wf["steps"]]
-    assert len(step_ids) == 11
+    assert len(step_ids) == 12
     for sid in ("scene_refiner", "scene_review", "scene_analyst", "object_planner",
-                "builder", "lighting_planner", "material_artist", "lighting_designer",
+                "builder", "builder_reviewer", "lighting_planner", "material_artist", "lighting_designer",
                 "reviewer", "renderer", "wait_for_adjust"):
         assert sid in step_ids
 
@@ -55,17 +57,17 @@ def test_build_workflow_entry_is_scene_refiner():
     assert wf["entry_step"] == "scene_refiner"
 
 
-def test_build_workflow_has_14_edges():
+def test_build_workflow_has_16_edges():
     wf = build_workflow()
-    assert len(wf["edges"]) == 14
+    assert len(wf["edges"]) == 16
 
 
 def test_build_workflow_step_types():
-    """8 LLM steps + 3 executor steps."""
+    """9 LLM steps + 3 executor steps."""
     wf = build_workflow()
     llm_steps = [s for s in wf["steps"] if "prompt" in s]
     exec_steps = [s for s in wf["steps"] if "executor" in s]
-    assert len(llm_steps) == 8
+    assert len(llm_steps) == 9
     assert len(exec_steps) == 3
 
 
@@ -134,7 +136,7 @@ def test_build_workflow_planner_steps_no_tools():
 
 def test_prompts_are_non_empty_strings():
     for p in [SCENE_REFINER_PROMPT, SCENE_ANALYST_PROMPT, OBJECT_PLANNER_PROMPT,
-              LIGHTING_PLANNER_PROMPT, BUILDER_PROMPT, MATERIAL_ARTIST_PROMPT,
+              LIGHTING_PLANNER_PROMPT, BUILDER_PROMPT, BUILDER_REVIEWER_PROMPT, MATERIAL_ARTIST_PROMPT,
               LIGHTING_DESIGNER_PROMPT, REVIEWER_PROMPT]:
         assert isinstance(p, str)
         assert len(p) > 0
@@ -221,14 +223,30 @@ def test_judge_routes_builder_after_has_more_back_to_object_planner():
     assert judge(ctx) == "to:object_planner"
 
 
-def test_judge_routes_builder_after_no_more_to_lighting_planner():
-    """builder after object_planner with has_more=false → to:lighting_planner."""
+def test_judge_routes_builder_after_no_more_to_builder_reviewer():
+    """builder after object_planner with has_more=false → to:builder_reviewer."""
     judge = create_blender_judge()
     # object_planner says has_more=false (last batch)
     judge({"step_id": "object_planner", "output": "", "step_count": 0,
            "structured": {"objects": [], "has_more": False}})
     ctx = {"step_id": "builder", "output": "", "step_count": 1, "structured": None}
+    assert judge(ctx) == "to:builder_reviewer"
+
+
+def test_judge_routes_builder_reviewer_passed_to_lighting_planner():
+    """builder_reviewer with passed=true → to:lighting_planner."""
+    judge = create_blender_judge()
+    ctx = {"step_id": "builder_reviewer", "output": "", "step_count": 2,
+           "structured": {"passed": True, "issues": []}}
     assert judge(ctx) == "to:lighting_planner"
+
+
+def test_judge_routes_builder_reviewer_failed_to_object_planner():
+    """builder_reviewer with passed=false → to:object_planner (re-plan)."""
+    judge = create_blender_judge()
+    ctx = {"step_id": "builder_reviewer", "output": "", "step_count": 2,
+           "structured": {"passed": False, "issues": ["物体重叠"]}}
+    assert judge(ctx) == "to:object_planner"
 
 
 def test_judge_routes_lighting_planner_to_material_artist():
