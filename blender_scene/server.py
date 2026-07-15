@@ -77,6 +77,7 @@ class SceneReviewRequest(BaseModel):
 
 def create_app(
     render_dir: str = "renders",
+    bridge: Any = None,
     workflow_runner: Callable[[AppState, str, bool], Any] | None = None,
 ) -> FastAPI:
     """Create the FastAPI application.
