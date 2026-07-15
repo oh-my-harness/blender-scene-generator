@@ -1037,13 +1037,18 @@
             const type = progress.type;
 
             if (type === 'message_end') {
-                // LLM text output — show in center column
-                const kind = progress.kind || 'final_answer';
-                // The text content might be in progress.name or progress.args
-                const text = progress.name || (progress.args ? (typeof progress.args === 'string' ? progress.args : JSON.stringify(progress.args)) : '');
-                if (text) {
-                    appendLLMOutput(stepId, text, kind);
+                // SDK's MessageEnd only carries message_id + kind (no text).
+                // Show a thinking indicator so the user knows the AI produced text.
+                const kind = (progress.kind || '').toLowerCase();
+                if (kind.includes('progress')) {
+                    appendLLMOutput(stepId, '💭 AI 正在思考...\n', 'progress');
+                } else if (kind.includes('final')) {
+                    appendLLMOutput(stepId, '✅ AI 回复完成\n', 'final');
                 }
+            } else if (type === 'turn_end') {
+                // A turn completed — the AI may have produced text + tool calls.
+                // The actual text comes in step_finished; just show a separator.
+                appendLLMOutput(stepId, '---\n', 'progress');
             } else {
                 // Tool call events — update tool cards
                 appendToolProgress(stepId, progress);
