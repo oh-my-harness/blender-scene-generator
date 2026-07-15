@@ -53,6 +53,7 @@ _WS_EVENT_TIMEOUT = 30.0
 class TaskRequest(BaseModel):
     """POST /api/task request body."""
     description: str
+    skip_refine: bool = False
 
 
 class AdjustRequest(BaseModel):
@@ -76,8 +77,7 @@ class SceneReviewRequest(BaseModel):
 
 def create_app(
     render_dir: str = "renders",
-    bridge: Any = None,
-    workflow_runner: Callable[[AppState, str], Any] | None = None,
+    workflow_runner: Callable[[AppState, str, bool], Any] | None = None,
 ) -> FastAPI:
     """Create the FastAPI application.
 
@@ -121,12 +121,11 @@ def create_app(
         # engine.run() is a blocking call (uses rt.block_on internally),
         # so we cannot run it on the asyncio event loop.
         # engine.run() 是阻塞调用（内部使用 rt.block_on），
-        # 因此不能在 asyncio 事件循环上运行。
         def _run_in_background():
             try:
                 if workflow_runner is not None:
-                    logger.info("workflow starting: %s", req.description[:80])
-                    workflow_runner(state, req.description)
+                    logger.info("workflow starting: %s (skip_refine=%s)", req.description[:80], req.skip_refine)
+                    workflow_runner(state, req.description, req.skip_refine)
                     logger.info("workflow completed")
             except Exception:
                 logger.exception("workflow failed")

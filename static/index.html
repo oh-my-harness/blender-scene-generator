@@ -109,6 +109,16 @@
         #submit-btn:hover { opacity: 0.9; }
         #submit-btn:active { transform: scale(0.97); }
         #submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .skip-refine-label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            color: var(--text-dim);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .skip-refine-label input { cursor: pointer; }
 
         .topbar-divider {
             width: 1px;
@@ -721,6 +731,7 @@
     <div id="topbar">
         <span class="logo">🧊 Scene Gen</span>
         <textarea id="description" placeholder="Describe a scene... e.g. A cozy Nordic living room with a white sofa, wooden coffee table, and warm lamp lighting"></textarea>
+        <label class="skip-refine-label"><input type="checkbox" id="skip-refine" checked> 细化</label>
         <button id="submit-btn" onclick="submitTask()">Generate</button>
         <div class="topbar-divider"></div>
         <div id="current-step-display">
@@ -819,7 +830,7 @@
             fetch('/api/task', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description: desc }),
+                body: JSON.stringify({ description: desc, skip_refine: !document.getElementById('skip-refine').checked }),
             }).then(resp => {
                 if (resp.status === 409) {
                     alert('已有任务在运行，请等待完成。');

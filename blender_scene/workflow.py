@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 
 SCENE_REFINER_PROMPT = r"""你是一名 3D 场景细化师。请阅读上方"Context"块中的用户场景描述（键 `user_description`），然后将其细化为一段详细、生动的描述，供专业 3D 美术师构建场景。
 
-请从以下方面展开：
+**重要**：如果上下文中有 `skip_refine` 且为 true，说明用户不需要细化，请直接将原始描述作为 refined_description 返回，不做任何修改。只需调用 submit_step_result 工具，传入：{"refined_description": "原始描述"}。
+
+否则，请从以下方面展开：
 - 视觉风格与氛围
 - 关键物体及其空间关系
 - 色彩搭配与材质建议
@@ -303,7 +305,7 @@ class ExecutorWrapper:
 MAX_BUILDER_RUNS = 3  # initial + 2 retries
 
 
-def create_blender_judge():
+def create_blender_judge(skip_refine: bool = False):
     """Create the Blender workflow judge with batch-loop state.
 
     The Python SDK judge callback receives ctx with:
@@ -340,7 +342,8 @@ def create_blender_judge():
 
         # ── Route rules ──
         if step_id == "scene_refiner":
-            result = "to:scene_review"
+            # Skip scene_review (human approval) when skip_refine is set.
+            result = "to:scene_analyst" if skip_refine else "to:scene_review"
 
         elif step_id == "scene_review":
             result = "to:scene_analyst"

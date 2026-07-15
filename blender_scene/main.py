@@ -166,7 +166,7 @@ def start_blender_with_addon(blender_path: str, addon_path: str) -> subprocess.P
 
 # ── Workflow runner ────────────────────────────────────────────
 
-def _run_scene_workflow(state, description: str) -> None:
+def _run_scene_workflow(state, description: str, skip_refine: bool = False) -> None:
     """Build and run the scene workflow.
 
     This is the production workflow_runner passed to create_app().
@@ -232,7 +232,7 @@ def _run_scene_workflow(state, description: str) -> None:
     # ── Build engine ──
     logger.info("building workflow engine")
     workflow = build_workflow()
-    judge = create_blender_judge()
+    judge = create_blender_judge(skip_refine=skip_refine)
 
     engine = lh.WorkflowEngine(workflow, provider, model, judge._judge)
     # glm-5.2 的 thinking 很长（~8K token），默认 max_tokens=8192 不够，
@@ -285,6 +285,7 @@ def _run_scene_workflow(state, description: str) -> None:
     # The planner step reads this from the context variables.
     # 将用户描述写入上下文。planner 步骤从上下文变量中读取。
     engine.set_context_variable("user_description", description)
+    engine.set_context_variable("skip_refine", skip_refine)
 
     # ── Store engine in state ──
     state.engine = engine
