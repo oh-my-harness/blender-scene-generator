@@ -290,6 +290,15 @@ def _run_scene_workflow(state, description: str, skip_refine: bool = False) -> N
     # ── Store engine in state ──
     state.engine = engine
 
+    # ── Clear scene before running ──
+    # Start from a clean slate every time.
+    if state.bridge is not None:
+        try:
+            state.bridge.send("execute_python", {"code": "import bpy; [bpy.data.objects.remove(o, do_unlink=True) for o in list(bpy.data.objects)]"})
+            logger.info("scene cleared before workflow start")
+        except Exception as e:
+            logger.warning("failed to clear scene: %s", e)
+
     # ── Run ──
     logger.info("starting workflow engine: task_id=%s", task_id)
     engine.run()
