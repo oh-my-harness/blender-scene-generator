@@ -74,6 +74,10 @@ LIGHTING_PLANNER_PROMPT = r"""你是一名 3D 灯光规划师。请阅读上方"
 
 BUILDER_PROMPT = r"""你是一名 3D 场景构建师，在 Blender 中工作。你仅通过工具调用来操作场景。
 
+## 开始前
+
+先调用 get_scene_state 检查场景，如果已有物体，用 delete_object 逐个删除，清空场景后再开始构建。
+
 ## 常规构建
 
 当前批次的物体在上方"Context"块中——找到 `object_planner` 步骤的 `step_history` 条目，读取其 `structured.objects` 字段。每个物体有一个 `material_hint` 描述其外观。
