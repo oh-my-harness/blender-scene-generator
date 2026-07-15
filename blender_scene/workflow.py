@@ -235,6 +235,7 @@ def build_workflow() -> dict:
         ],
         "edges": [
             {"from": "scene_refiner", "to": "scene_review"},
+            {"from": "scene_refiner", "to": "scene_analyst"},  # skip_refine path
             {"from": "scene_review", "to": "scene_analyst"},
             {"from": "scene_analyst", "to": "object_planner"},
             # object_planner → builder (always, builder handles batch loop)

@@ -55,9 +55,9 @@ def test_build_workflow_entry_is_scene_refiner():
     assert wf["entry_step"] == "scene_refiner"
 
 
-def test_build_workflow_has_13_edges():
+def test_build_workflow_has_14_edges():
     wf = build_workflow()
-    assert len(wf["edges"]) == 13
+    assert len(wf["edges"]) == 14
 
 
 def test_build_workflow_step_types():
