@@ -1439,6 +1439,93 @@
             div.textContent = text;
             return div.innerHTML;
         }
-    </script>
+        // ===== Page load: restore state from /api/status =====
+        function restoreFromStatus() {
+            fetch('/api/status').then(resp => resp.json()).then(status => {
+                const state = status.state;
+                if (state === 'idle' || !status.running) {
+                    // No active task — show empty state
+                    showCenterEmpty();
+                    return;
+                }
+
+                // Task is running or paused — restore UI state
+                // Disable submit button
+                document.getElementById('submit-btn').disabled = true;
+
+                // Restore cost
+                if (status.total_cost && status.total_cost.total_cost) {
+                    totalCost = status.total_cost.total_cost;
+                    updateCostDisplay();
+                }
+
+                // Restore step history → mark done nodes + populate outputs
+                const history = status.step_history || [];
+                history.forEach(record => {
+                    const stepId = record.step_id;
+                    if (!stepId) return;
+
+                    // Track rounds
+                    stepRounds[stepId] = (stepRounds[stepId] || 0) + 1;
+
+                    // Mark node as done
+                    setDoneNode(stepId);
+
+                    // Add to event timeline
+                    const list = document.getElementById('events');
+                    const li = document.createElement('li');
+                    const cfg = stepConfig[stepId] || { name: stepId, icon: '🔹' };
+                    li.innerHTML = `
+                        <span class="event-icon">✔</span>
+                        <div class="event-body">
+                            <span class="event-text">${cfg.name} finished</span>
+                        </div>
+                    `;
+                    li.className = 'event-step_finished';
+                    list.prepend(li);
+
+                    // Store outputs for review cards
+                    const result = record.result || {};
+                    if (result.output) stepOutputs[stepId] = result.output;
+                    if (result.structured) stepStructured[stepId] = result.structured;
+                });
+
+                // Restore current step
+                const currentStep = status.current_step;
+                if (currentStep) {
+                    currentStepId = currentStep;
+                    // Track round for current step (it's running, not yet in history)
+                    stepRounds[currentStep] = (stepRounds[currentStep] || 0) + 1;
+                    setActiveNode(currentStep);
+                    updateTopbarStep(currentStep);
+
+                    if (state === 'paused') {
+                        setStatusBadge('paused', 'Paused');
+                        // Show appropriate review card
+                        if (currentStep === 'scene_review') {
+                            showReviewCard('scene_review');
+                        } else {
+                            showReviewCard('reviewer');
+                        }
+                    } else {
+                        setStatusBadge('running', 'Running');
+                        // Initialize center column for the running step
+                        if (currentStep !== 'scene_review') {
+                            initCenterForStep(currentStep, stepRounds[currentStep]);
+                        }
+                    }
+                }
+
+                // Connect WebSocket to receive live events
+                connectWS();
+            }).catch(err => {
+                console.error('Failed to restore status:', err);
+                showCenterEmpty();
+            });
+        }
+
+        // Run on page load
+        restoreFromStatus();
+     </script>
 </body>
 </html>
