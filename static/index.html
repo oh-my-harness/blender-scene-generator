@@ -827,13 +827,13 @@
                     // Restore UI from server state instead of leaving it blank
                     restoreFromStatus();
                 } else if (resp.ok) {
-                    // Clear UI for the new task, then sync state from server
-                    // (restoreFromStatus polls /api/status and connects WS)
+                    // Clear UI for the new task, then sync state from server.
+                    // restoreFromStatus polls /api/status (with retries) until the
+                    // engine registers the task, then connects WS for live events.
                     document.getElementById('events').innerHTML = '';
                     resetFlowchart();
                     resetState();
-                    // Small delay to let the workflow engine register the task
-                    setTimeout(() => restoreFromStatus(), 300);
+                    restoreFromStatus();
                 } else {
                     alert('Failed to start task');
                     document.getElementById('submit-btn').disabled = false;
@@ -1450,11 +1450,17 @@
             return div.innerHTML;
         }
         // ===== Page load: restore state from /api/status =====
-        function restoreFromStatus() {
+        function restoreFromStatus(retries = 0) {
             fetch('/api/status').then(resp => resp.json()).then(status => {
                 const state = status.state;
                 if (state === 'idle' || !status.running) {
-                    // No active task — show empty state
+                    // No active task yet. If this is right after submitting a task,
+                    // the engine may not have registered it yet — retry a few times.
+                    if (retries < 5) {
+                        setTimeout(() => restoreFromStatus(retries + 1), 300);
+                        return;
+                    }
+                    // Give up — no task running
                     showCenterEmpty();
                     return;
                 }
