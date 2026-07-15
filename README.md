@@ -22,7 +22,7 @@ source .venv/bin/activate
 
 # Install all deps (runtime wheel resolved from public --find-links URL)
 pip install -r blender_scene/requirements.txt \
-  --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.2.0
+  --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.3.0
 
 ./run.sh
 ```
@@ -89,7 +89,7 @@ This launches Blender with the addon, waits for the TCP socket, then starts the 
 
 2. **Workflow + AgentHarness** (`blender_scene/workflow.py`, `blender_scene/tools.py`) — a 4-step workflow driven by `WorkflowEngine`: `planner → builder → reviewer → renderer`, with a re-hop edge from `reviewer` back to `builder` when the human review fails (capped at 2 rework rounds). Each LLM step builds an `AgentHarness` injected with Blender tools; the reviewer step pauses on `request_human_review` via `EventStream` until the human submits a decision through the web UI.
 
-3. **Web Server** (`blender_scene/server.py`) — a FastAPI app serving the static single-page frontend, a `POST /api/task` endpoint to submit scene descriptions, a `GET /api/render/{filename}` endpoint for rendered images, and a `/ws` WebSocket that broadcasts `WorkflowEvent`s for live graph updates.
+3. **Web Server** (`blender_scene/server.py`) — a FastAPI app serving the static single-page frontend, a `POST /api/task` endpoint to submit scene descriptions, a `GET /api/status` endpoint exposing the workflow runtime state (`current_step` / `state` / `total_cost` / `step_history`), a `GET /api/render/{filename}` endpoint for rendered images, and a `/ws` WebSocket that broadcasts `WorkflowEvent`s for live graph updates.
 
 4. **Frontend** (`static/index.html`) — zero-dependency single page: an SVG workflow graph that highlights the active step, a streaming event log, human-review controls (active while paused), and the final render display.
 
@@ -107,6 +107,7 @@ This launches Blender with the addon, waits for the TCP socket, then starts the 
 | Event stream visualization | `WorkflowEvent` → WebSocket → live SVG graph |
 | `EventStream` pause/resume | Human-in-the-loop review |
 | Shared blackboard (`WorkflowContext`) | Scene plan + review issues passed between steps |
+| Runtime observability (0.3.0) | `GET /api/status` exposes `current_step` / `state` / `total_cost` / `step_history` |
 
 ## Project layout
 
@@ -132,11 +133,37 @@ blender-scene-generator/
 └── examples/                 # scene description examples
 ```
 
+## HTTP API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/task` | Submit a scene description, start the workflow in background (202) |
+| `POST` | `/api/adjust` | Push an adjustment instruction to the waiting executor (202) |
+| `POST` | `/api/review` | Submit a human review decision (200) |
+| `GET` | `/api/status` | Workflow runtime snapshot: `state` / `current_step` / `total_cost` / `step_history` (0.3.0) |
+| `GET` | `/api/render/{filename}` | Serve a rendered image file |
+| `WS` | `/ws` | Stream `WorkflowEvent`s for live graph updates |
+
+`GET /api/status` response shape:
+
+```json
+{
+  "running": false,
+  "state": "idle",
+  "current_step": null,
+  "task_id": null,
+  "total_cost": null,
+  "step_history": []
+}
+```
+
+When a workflow is active, `state` is one of `running` / `paused` / `succeeded` / `failed` / `cancelled`, and `total_cost` / `step_history` are populated by the runtime engine.
+
 ## Tests
 
 ```bash
 pip install -e '.[dev]' \
-  --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.2.0
+  --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.3.0
 pytest
 ```
 

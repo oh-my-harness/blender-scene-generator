@@ -23,7 +23,7 @@ Blender Scene Generator：基于 oh-my-harness runtime 的 3D 场景生成工具
 ### 依赖配置
 
 - runtime SDK (`llm_harness_py`) 是闭源 PyO3 扩展（CPython 3.12）。源码在私有仓库 `llm-harness-runtime`，预编译 wheel 发布在公开仓库 `llm-harness-py-wheels`
-- 安装：`pip install -r blender_scene/requirements.txt --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.2.0`
+- 安装：`pip install -r blender_scene/requirements.txt --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.3.0`
 - 本地调试：在 `../REDACTED/llm-harness-py` 下 `maturin develop --release`，然后用 `./run-dev.sh` 启动（自动用该 venv）
 
 ## 构建
@@ -34,7 +34,7 @@ Blender Scene Generator：基于 oh-my-harness runtime 的 3D 场景生成工具
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r blender_scene/requirements.txt \
-  --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.2.0
+  --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.3.0
 ```
 
 测试：

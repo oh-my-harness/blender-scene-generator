@@ -177,6 +177,74 @@ async def test_render_serves_existing_file(tmp_path):
         assert resp.headers["content-type"] == "image/png"
 
 
+
+# ── GET /api/status ────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_status_no_engine_returns_idle(app):
+    """GET /api/status with no active engine returns idle snapshot."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["state"] == "idle"
+        assert body["running"] is False
+        assert body["current_step"] is None
+        assert body["total_cost"] is None
+        assert body["step_history"] == []
+        assert body["task_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_status_with_fake_engine_reports_fields(app):
+    """GET /api/status proxies engine.state/current_step/total_cost/step_history."""
+    from blender_scene.state import AppState
+
+    fake_engine = _FakeEngine(
+        state="running",
+        current_step="builder",
+        total_cost={"input": 10, "output": 5, "total": 0.001},
+        step_history=[{"step_id": "planner", "output": "plan"}],
+    )
+    app.state.engine = fake_engine  # type: ignore[attr-defined]
+    app.state.task_running = True  # type: ignore[attr-defined]
+    app.state.task_id = "task-123"  # type: ignore[attr-defined]
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["state"] == "running"
+        assert body["running"] is True
+        assert body["current_step"] == "builder"
+        assert body["task_id"] == "task-123"
+        assert body["total_cost"] == {"input": 10, "output": 5, "total": 0.001}
+        assert body["step_history"] == [{"step_id": "planner", "output": "plan"}]
+
+
+class _FakeEngine:
+    """Minimal stand-in for llm_harness_py.WorkflowEngine observability methods."""
+
+    def __init__(self, *, state, current_step, total_cost, step_history):
+        self._state = state
+        self._current_step = current_step
+        self._total_cost = total_cost
+        self._step_history = step_history
+
+    def state(self):
+        return self._state
+
+    def current_step(self):
+        return self._current_step
+
+    def total_cost(self):
+        return self._total_cost
+
+    def step_history(self):
+        return self._step_history
+
 # ── GET /ws (WebSocket) ────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -205,7 +273,43 @@ def test_app_state_initial_values():
     assert state.review_handle is None
     assert state.adjust_handle is None
     assert state.event_iterator is None
+    assert state.task_id is None
 
+
+def test_app_state_status_snapshot_no_engine():
+    """status_snapshot() returns idle shape when no engine is set."""
+    from blender_scene.state import AppState
+
+    state = AppState(render_dir="renders")
+    snap = state.status_snapshot()
+    assert snap["state"] == "idle"
+    assert snap["running"] is False
+    assert snap["current_step"] is None
+    assert snap["task_id"] is None
+    assert snap["total_cost"] is None
+    assert snap["step_history"] == []
+
+
+def test_app_state_status_snapshot_with_engine():
+    """status_snapshot() proxies engine observability methods."""
+    from blender_scene.state import AppState
+
+    state = AppState(render_dir="renders")
+    state.engine = _FakeEngine(
+        state="paused",
+        current_step="reviewer",
+        total_cost={"total": 0.5},
+        step_history=[{"step_id": "builder"}],
+    )
+    state.task_running = True
+    state.task_id = "task-abc"
+    snap = state.status_snapshot()
+    assert snap["state"] == "paused"
+    assert snap["running"] is True
+    assert snap["current_step"] == "reviewer"
+    assert snap["task_id"] == "task-abc"
+    assert snap["total_cost"] == {"total": 0.5}
+    assert snap["step_history"] == [{"step_id": "builder"}]
 
 def test_app_state_clear_active_task():
     """clear_active_task() resets all task-related fields."""
@@ -216,6 +320,7 @@ def test_app_state_clear_active_task():
     state.review_handle = "fake_review"
     state.adjust_handle = "fake_adjust"
     state.event_iterator = "fake_iter"
+    state.task_id = "task-x"
     state.task_running = True
 
     state.clear_active_task()
@@ -224,3 +329,4 @@ def test_app_state_clear_active_task():
     assert state.review_handle is None
     assert state.adjust_handle is None
     assert state.event_iterator is None
+    assert state.task_id is None

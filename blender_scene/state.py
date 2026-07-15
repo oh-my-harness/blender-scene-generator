@@ -43,6 +43,10 @@ class AppState:
         event_iterator: WorkflowEventIterator from engine.subscribe().
                         Set when a workflow starts.
                         来自 engine.subscribe() 的事件迭代器。工作流启动时设置。
+        task_id: The workflow task ID (engine.task_id()). Set when a task starts;
+                 consumed by status_snapshot(). Cleared on clear_active_task().
+                 工作流任务 ID（engine.task_id()）。任务启动时设置；
+                 供 status_snapshot() 使用。clear_active_task() 时清除。
     """
 
     def __init__(self, render_dir: str, bridge: Any = None):
@@ -53,6 +57,37 @@ class AppState:
         self.review_handle: Any = None
         self.adjust_handle: Any = None
         self.event_iterator: Any = None
+        self.task_id: str | None = None
+
+    def status_snapshot(self) -> dict:
+        """Return a serializable snapshot of the workflow runtime state.
+
+        Exposes 0.3.0 observability methods: current_step, state,
+        total_cost, step_history. Returns an idle shape when no engine
+        is active (no task running or engine not yet built).
+
+        返回可序列化的工作流运行时状态快照。
+        暴露 0.3.0 观测方法：current_step、state、total_cost、step_history。
+        无活跃 engine 时返回 idle 形态。
+        """
+        engine = self.engine
+        if engine is None:
+            return {
+                "running": self.task_running,
+                "state": "idle",
+                "current_step": None,
+                "task_id": self.task_id,
+                "total_cost": None,
+                "step_history": [],
+            }
+        return {
+            "running": self.task_running,
+            "state": engine.state(),
+            "current_step": engine.current_step(),
+            "task_id": self.task_id,
+            "total_cost": engine.total_cost(),
+            "step_history": engine.step_history(),
+        }
 
     def clear_active_task(self) -> None:
         """Clear all task-related handles so the next task starts fresh.
@@ -63,3 +98,4 @@ class AppState:
         self.review_handle = None
         self.adjust_handle = None
         self.event_iterator = None
+        self.task_id = None

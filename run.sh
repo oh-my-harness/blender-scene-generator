@@ -5,7 +5,7 @@
 #   python3.12 -m venv .venv
 #   source .venv/bin/activate
 #   pip install -r blender_scene/requirements.txt \
-#     --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.2.0
+#     --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.3.0
 set -euo pipefail
 
 PYTHON="${PYTHON:-python3}"
@@ -18,7 +18,7 @@ INSTALL_HELP() {
     python3.12 -m venv .venv
     source .venv/bin/activate
     pip install -r blender_scene/requirements.txt \
-      --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.2.0
+      --find-links https://github.com/oh-my-harness/llm-harness-py-wheels/releases/expanded_assets/v0.3.0
 
   Then run: ./run.sh
 EOF

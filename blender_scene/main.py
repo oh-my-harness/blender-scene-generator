@@ -245,8 +245,8 @@ def _run_scene_workflow(state, description: str) -> None:
 
     # ── Review channel ──
     task_id = engine.task_id()
+    state.task_id = task_id
     review_handle, review_tool = lh.create_event_channel(task_id)
-    state.review_handle = review_handle
 
     # ── Adjust wait executor ──
     adjust_executor, adjust_handle = create_wait_for_adjust_executor()

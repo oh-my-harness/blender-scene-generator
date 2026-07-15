@@ -6,8 +6,8 @@ Endpoints:
 - POST /api/task    — submit a scene description, start workflow in background
 - POST /api/adjust  — push an adjustment instruction into the waiting executor
 - POST /api/review  — submit a human review decision
+- GET  /api/status — return a snapshot of the workflow runtime state
 - GET  /api/render/{filename} — serve a rendered image file
-- WS   /ws          — forward WorkflowEvents to the client
 
 FastAPI Web 服务器——5 个 HTTP 端点 + WebSocket 处理器。
 翻译 REDACTEDroutes.rs 和 REDACTEDevents.rs。
@@ -187,6 +187,21 @@ def create_app(
             status_code=200,
             content={"message": "review submitted"},
         )
+
+    # ── GET /api/status ─────────────────────────────────────────
+
+    @app.get("/api/status")
+    async def get_status():
+        """Return a snapshot of the workflow runtime state.
+
+        Exposes 0.3.0 observability: current_step, state, total_cost,
+        step_history. Returns an idle shape when no engine is active.
+
+        返回工作流运行时状态快照。
+        暴露 0.3.0 观测能力：current_step、state、total_cost、step_history。
+        无活跃 engine 时返回 idle 形态。
+        """
+        return JSONResponse(status_code=200, content=state.status_snapshot())
 
     # ── GET /api/render/{filename} ──────────────────────────────
 
