@@ -7,155 +7,818 @@
     <title>Blender Scene Generator</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; display: flex; height: 100vh; }
-        #left { width: 50%; padding: 20px; overflow-y: auto; border-right: 1px solid #333; }
-        #right { width: 50%; padding: 20px; overflow-y: auto; }
-        h1 { margin-bottom: 16px; font-size: 1.4rem; }
-        h2 { margin: 16px 0 8px; font-size: 1.1rem; color: #8af; }
-        textarea { width: 100%; height: 80px; background: #16213e; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 8px; font-family: inherit; resize: vertical; }
-        button { background: #0f3460; color: #eee; border: none; border-radius: 4px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; margin: 8px 8px 0 0; }
-        button:hover { background: #1a4a7a; }
-        button:disabled { opacity: 0.4; cursor: not-allowed; }
-        button.pass { background: #1b5e20; }
-        button.fail { background: #b71c1c; }
-        #workflow-svg { width: 100%; height: 200px; margin: 16px 0; }
-        .node { fill: #16213e; stroke: #555; stroke-width: 2; }
-        .node.active { fill: #0f3460; stroke: #8af; }
-        .node.done { fill: #1b5e20; stroke: #4caf50; }
-        .edge { stroke: #444; stroke-width: 2; fill: none; }
-        .edge.active { stroke: #8af; }
-        .node-label { fill: #eee; font-size: 12px; text-anchor: middle; }
 
-        /* Event stream */
-        #events { list-style: none; font-size: 0.85rem; }
-        #events li { padding: 6px 0; border-bottom: 1px solid #222; font-family: monospace; }
-        .event-StepStarted { color: #8af; }
-        .event-StepFinished { color: #4caf50; }
-        .event-Paused { color: #ff9800; }
-        .event-Resumed { color: #8bc34a; }
-        .event-Failed { color: #f44336; }
-        .event-meta { color: #888; font-size: 0.8rem; margin-left: 8px; }
-        .event-output { color: #ccc; font-size: 0.8rem; margin-top: 4px; padding: 6px 8px; background: #0a0a1a; border-radius: 4px; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+        :root {
+            --bg: #0f0f1a;
+            --bg-2: #141424;
+            --grad-start: #6366f1;
+            --grad-end: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --text: #e5e7eb;
+            --text-dim: #9ca3af;
+            --text-muted: #6b7280;
+            --glass-bg: rgba(255,255,255,0.05);
+            --glass-border: rgba(255,255,255,0.1);
+            --glass-bg-hover: rgba(255,255,255,0.08);
+            --radius-card: 12px;
+            --radius-btn: 8px;
+            --radius-sm: 6px;
+        }
 
-        /* Step detail cards */
-        .step-card { margin: 8px 0; padding: 12px; background: #16213e; border-radius: 8px; border-left: 3px solid #555; }
-        .step-card.active { border-left-color: #8af; }
-        .step-card.done { border-left-color: #4caf50; }
-        .step-card-header { display: flex; justify-content: space-between; align-items: center; }
-        .step-card-title { font-weight: bold; font-size: 0.9rem; }
-        .step-card-status { font-size: 0.75rem; color: #888; }
-        .step-card-body { margin-top: 8px; font-size: 0.8rem; color: #ccc; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
-        .step-card-meta { font-size: 0.75rem; color: #888; margin-top: 4px; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
 
-        /* Step progress (live tool calls) */
-        .step-card-progress { margin-top: 8px; font-size: 0.78rem; font-family: monospace; }
-        .progress-item { padding: 2px 0; color: #aaa; border-left: 2px solid #444; padding-left: 8px; margin: 2px 0; }
-        .progress-item.active { color: #8af; border-left-color: #8af; }
-        .progress-item.ok { color: #4caf50; border-left-color: #4caf50; }
-        .progress-item.err { color: #f44336; border-left-color: #f44336; }
+        /* Subtle ambient gradient */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse at 15% 20%, rgba(99,102,241,0.08), transparent 50%),
+                radial-gradient(ellipse at 85% 80%, rgba(139,92,246,0.08), transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
 
-        #review-section { display: none; margin: 16px 0; padding: 16px; background: #16213e; border-radius: 8px; }
-        #review-section.active { display: block; }
-        #render-img { max-width: 100%; margin-top: 16px; border-radius: 8px; }
-        #review-summary { margin: 8px 0; padding: 8px; background: #0a0a1a; border-radius: 4px; font-size: 0.85rem; white-space: pre-wrap; }
+        /* ===== Top Status Bar ===== */
+        #topbar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 24px;
+            background: rgba(15,15,26,0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+        #topbar .logo {
+            font-size: 20px;
+            font-weight: 700;
+            white-space: nowrap;
+            background: linear-gradient(135deg, var(--grad-start), var(--grad-end));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        #description {
+            flex: 1;
+            min-width: 0;
+            height: 42px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-btn);
+            padding: 10px 14px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: border-color 0.2s;
+        }
+        #description:focus {
+            outline: none;
+            border-color: var(--grad-start);
+        }
+        #description::placeholder { color: var(--text-muted); }
+
+        #submit-btn {
+            height: 42px;
+            padding: 0 24px;
+            background: linear-gradient(135deg, var(--grad-start), var(--grad-end));
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-btn);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        #submit-btn:hover { opacity: 0.9; }
+        #submit-btn:active { transform: scale(0.97); }
+        #submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .topbar-divider {
+            width: 1px;
+            height: 28px;
+            background: var(--glass-border);
+        }
+
+        #current-step-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            min-width: 160px;
+        }
+        #current-step-icon { font-size: 20px; }
+        #current-step-name { color: var(--text); }
+
+        #cost-display {
+            font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+            font-size: 14px;
+            color: var(--text-dim);
+            min-width: 70px;
+            text-align: right;
+        }
+
+        #status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            background: rgba(156,163,175,0.15);
+            color: var(--text-dim);
+            border: 1px solid rgba(156,163,175,0.2);
+            transition: all 0.3s;
+        }
+        #status-badge.running {
+            background: rgba(99,102,241,0.15);
+            color: #a5b4fc;
+            border-color: rgba(99,102,241,0.3);
+        }
+        #status-badge.running .badge-dot { animation: pulse-dot 1.5s infinite; }
+        #status-badge.paused {
+            background: rgba(245,158,11,0.15);
+            color: #fcd34d;
+            border-color: rgba(245,158,11,0.3);
+        }
+        #status-badge.done {
+            background: rgba(16,185,129,0.15);
+            color: #6ee7b7;
+            border-color: rgba(16,185,129,0.3);
+        }
+        #status-badge.failed {
+            background: rgba(239,68,68,0.15);
+            color: #fca5a5;
+            border-color: rgba(239,68,68,0.3);
+        }
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+            50% { opacity: 0.6; box-shadow: 0 0 0 4px transparent; }
+        }
+
+        /* ===== Main 3-column layout ===== */
+        #main {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ===== Left Column — Flowchart ===== */
+        #left-col {
+            width: 280px;
+            flex-shrink: 0;
+            padding: 20px 16px;
+            overflow-y: auto;
+            border-right: 1px solid var(--glass-border);
+        }
+        #left-col::-webkit-scrollbar { width: 4px; }
+        #left-col::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .flow-node {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            margin-bottom: 2px;
+            border-radius: var(--radius-card);
+            border: 1px solid transparent;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .flow-node-icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .flow-node-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .flow-node-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dim);
+            transition: color 0.3s;
+        }
+        .flow-node-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+        .flow-node-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(156,163,175,0.3);
+            flex-shrink: 0;
+            transition: all 0.3s;
+        }
+        /* Connector line between nodes */
+        .flow-node:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 25px;
+            bottom: -10px;
+            width: 2px;
+            height: 8px;
+            background: rgba(255,255,255,0.08);
+        }
+
+        .flow-node.pending .flow-node-dot {
+            background: rgba(156,163,175,0.3);
+        }
+        .flow-node.active {
+            background: var(--glass-bg);
+            border-color: rgba(99,102,241,0.3);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .flow-node.active .flow-node-name { color: #a5b4fc; }
+        .flow-node.active .flow-node-dot {
+            background: var(--grad-start);
+            animation: pulse-glow 1.5s infinite;
+        }
+        .flow-node.done .flow-node-name { color: var(--text); }
+        .flow-node.done .flow-node-dot {
+            background: var(--success);
+        }
+        .flow-node.done .flow-node-dot::after {
+            content: '✓';
+            color: #fff;
+            font-size: 9px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 12px;
+            line-height: 12px;
+        }
+        .flow-node.failed .flow-node-dot {
+            background: var(--error);
+        }
+        .flow-node.failed .flow-node-dot::after {
+            content: '✗';
+            color: #fff;
+            font-size: 8px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 12px;
+            line-height: 12px;
+        }
+        .flow-node.failed .flow-node-name { color: #fca5a5; }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.6); }
+            50% { box-shadow: 0 0 0 6px rgba(99,102,241,0); }
+        }
+
+        /* Round badge for repeated steps */
+        .flow-node-round {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--grad-end);
+            background: rgba(139,92,246,0.15);
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+
+        /* ===== Center Column — Main Content ===== */
+        #center-col {
+            flex: 1;
+            min-width: 0;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        #center-col::-webkit-scrollbar { width: 6px; }
+        #center-col::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 6px; }
+
+        .center-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            color: var(--text-muted);
+            text-align: center;
+            gap: 12px;
+        }
+        .center-empty .big-icon { font-size: 48px; opacity: 0.5; }
+        .center-empty .hint { font-size: 16px; }
+
+        /* Step header */
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .step-header-icon { font-size: 28px; }
+        .step-header-text h2 {
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .step-header-text .step-desc {
+            font-size: 14px;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        /* Glass card base */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-card);
+            padding: 16px;
+        }
+
+        /* LLM thinking output */
+        .llm-output {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text);
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .llm-output::-webkit-scrollbar { width: 4px; }
+        .llm-output::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .llm-output-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .llm-output-label .thinking-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--grad-start);
+            animation: pulse-dot 1s infinite;
+        }
+
+        /* Tool call cards */
+        .tool-cards-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .tool-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .tool-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tool-card-name {
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 13px;
+            color: #a5b4fc;
+            font-weight: 600;
+        }
+        .tool-card-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        .tool-card-status-dot.executing {
+            background: var(--grad-start);
+            animation: pulse-dot 1s infinite;
+        }
+        .tool-card-status-dot.ok { background: var(--success); }
+        .tool-card-status-dot.err { background: var(--error); }
+        .tool-card-args {
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .tool-card-result {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+        .tool-card-result.err { color: #fca5a5; }
+
+        /* Review / pause cards */
+        .review-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-card);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .review-card-title {
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .review-card-content {
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text);
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            white-space: pre-wrap;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        .review-card-content::-webkit-scrollbar { width: 4px; }
+        .review-card-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .review-feedback {
+            width: 100%;
+            min-height: 60px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        .review-feedback:focus { outline: none; border-color: var(--grad-start); }
+        .review-feedback::placeholder { color: var(--text-muted); }
+
+        .review-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .btn-approve {
+            flex: 1;
+            height: 44px;
+            background: linear-gradient(135deg, var(--success), #059669);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-btn);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-approve:hover { opacity: 0.9; }
+        .btn-approve:active { transform: scale(0.97); }
+        .btn-reject {
+            flex: 1;
+            height: 44px;
+            background: linear-gradient(135deg, var(--error), #dc2626);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-btn);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-reject:hover { opacity: 0.9; }
+        .btn-reject:active { transform: scale(0.97); }
+        .btn-approve:disabled, .btn-reject:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Renderer spinner */
+        .render-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 60px 20px;
+        }
+        .render-spinner .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(99,102,241,0.2);
+            border-top-color: var(--grad-start);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .render-spinner .label { font-size: 18px; color: var(--text-dim); }
+
+        /* Render image */
+        .render-result {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        .render-result img {
+            max-width: 100%;
+            border-radius: var(--radius-card);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        /* Adjust section */
+        .adjust-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-card);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .adjust-card-title {
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .adjust-input {
+            width: 100%;
+            min-height: 80px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        .adjust-input:focus { outline: none; border-color: var(--grad-start); }
+        .adjust-input::placeholder { color: var(--text-muted); }
+        .btn-apply {
+            align-self: flex-end;
+            height: 42px;
+            padding: 0 24px;
+            background: linear-gradient(135deg, var(--grad-start), var(--grad-end));
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-btn);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-apply:hover { opacity: 0.9; }
+        .btn-apply:active { transform: scale(0.97); }
+        .btn-apply:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ===== Right Column — Event Timeline ===== */
+        #right-col {
+            width: 320px;
+            flex-shrink: 0;
+            padding: 20px 16px;
+            overflow-y: auto;
+            border-left: 1px solid var(--glass-border);
+        }
+        #right-col::-webkit-scrollbar { width: 4px; }
+        #right-col::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .right-header {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        #events {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        #events li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        #events li:hover { background: rgba(255,255,255,0.03); }
+        .event-icon {
+            font-size: 14px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .event-body {
+            flex: 1;
+            min-width: 0;
+        }
+        .event-text {
+            color: var(--text);
+            word-break: break-word;
+        }
+        .event-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        .event-output-preview {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 4px;
+            padding: 6px 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--radius-sm);
+            white-space: pre-wrap;
+            max-height: 80px;
+            overflow-y: auto;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        .event-output-preview::-webkit-scrollbar { width: 3px; }
+        .event-output-preview::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+        .event-step_started .event-icon { color: #a5b4fc; }
+        .event-step_started .event-text { color: #a5b4fc; }
+        .event-step_finished .event-icon { color: var(--success); }
+        .event-step_finished .event-text { color: #6ee7b7; }
+        .event-paused .event-icon { color: var(--warning); }
+        .event-paused .event-text { color: #fcd34d; }
+        .event-resumed .event-icon { color: var(--success); }
+        .event-resumed .event-text { color: #6ee7b7; }
+        .event-failed .event-icon { color: var(--error); }
+        .event-failed .event-text { color: #fca5a5; }
+        .event-cancelled .event-icon { color: var(--error); }
+        .event-cancelled .event-text { color: #fca5a5; }
+
+        .event-ts {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: "SF Mono", "Fira Code", monospace;
+            white-space: nowrap;
+        }
+
+        /* Utility */
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <div id="left">
-        <h1>Blender Scene Generator</h1>
-
-        <h2>Scene Description</h2>
-        <textarea id="description" placeholder="e.g. A wooden desk with a glass cup and a book, warm lighting"></textarea>
-        <button id="submit-btn" onclick="submitTask()">Generate Scene</button>
-
-        <h2>Workflow</h2>
-        <svg id="workflow-svg" viewBox="0 0 560 150">
-            <!-- Edges -->
-            <line class="edge" id="edge-p-b" x1="60" y1="40" x2="140" y2="40" />
-            <line class="edge" id="edge-b-r" x1="220" y1="40" x2="290" y2="40" />
-            <line class="edge" id="edge-r-rn" x1="370" y1="40" x2="440" y2="40" />
-            <line class="edge" id="edge-rn-w" x1="480" y1="40" x2="500" y2="40" />
-            <!-- Loop back: wait_for_adjust → builder -->
-            <path class="edge" id="edge-w-b" d="M 520 60 Q 520 110 180 110 Q 180 80 180 60" fill="none" stroke-dasharray="5,3" />
-            <!-- Rework: reviewer → builder -->
-            <path class="edge" id="edge-r-b" d="M 330 60 Q 330 95 180 95 Q 180 80 180 60" fill="none" stroke-dasharray="5,3" />
-            <!-- Nodes -->
-            <g>
-                <rect class="node" id="node-planner" x="10" y="20" width="100" height="40" rx="8" />
-                <text class="node-label" x="60" y="45">Planner</text>
-            </g>
-            <g>
-                <rect class="node" id="node-builder" x="140" y="20" width="80" height="40" rx="8" />
-                <text class="node-label" x="180" y="45">Builder</text>
-            </g>
-            <g>
-                <rect class="node" id="node-reviewer" x="290" y="20" width="80" height="40" rx="8" />
-                <text class="node-label" x="330" y="45">Reviewer</text>
-            </g>
-            <g>
-                <rect class="node" id="node-renderer" x="440" y="20" width="40" height="40" rx="8" />
-                <text class="node-label" x="460" y="45">Render</text>
-            </g>
-            <g>
-                <rect class="node" id="node-wait_for_adjust" x="500" y="20" width="50" height="40" rx="8" />
-                <text class="node-label" x="525" y="45">Wait</text>
-            </g>
-        </svg>
-
-        <h2>Step Details</h2>
-        <div id="step-details"></div>
-
-        <h2>Review</h2>
-        <div id="review-section">
-            <div id="review-summary"></div>
-            <textarea id="feedback" placeholder="Feedback (optional if approved)"></textarea>
-            <br>
-            <button class="pass" onclick="submitReview(true)">Approve</button>
-            <button class="fail" onclick="submitReview(false)">Reject</button>
+    <!-- Top Status Bar -->
+    <div id="topbar">
+        <span class="logo">🧊 Scene Gen</span>
+        <textarea id="description" placeholder="Describe a scene... e.g. A cozy Nordic living room with a white sofa, wooden coffee table, and warm lamp lighting"></textarea>
+        <button id="submit-btn" onclick="submitTask()">Generate</button>
+        <div class="topbar-divider"></div>
+        <div id="current-step-display">
+            <span id="current-step-icon">⚪</span>
+            <span id="current-step-name">Idle</span>
         </div>
-
-        <h2>Render Result</h2>
-        <img id="render-img" style="display:none" />
-
-        <h2>Adjust Scene</h2>
-        <div id="adjust-section" style="display:none">
-            <textarea id="adjust-instruction" placeholder="e.g. Make the sofa red, add a lamp on the table"></textarea>
-            <button id="adjust-btn" onclick="submitAdjust()">Apply Adjustment</button>
-        </div>
+        <div class="topbar-divider"></div>
+        <span id="cost-display">$0.000</span>
+        <div id="status-badge"><span class="badge-dot"></span>Idle</div>
     </div>
 
-    <div id="right">
-        <h2>Event Stream</h2>
-        <ul id="events"></ul>
+    <!-- Main 3-column layout -->
+    <div id="main">
+        <!-- Left: Flowchart -->
+        <div id="left-col"></div>
+
+        <!-- Center: Context-switching content -->
+        <div id="center-col">
+            <div class="center-empty" id="center-empty">
+                <div class="big-icon">🎨</div>
+                <div class="hint">Enter a scene description and click Generate</div>
+            </div>
+        </div>
+
+        <!-- Right: Event Timeline -->
+        <div id="right-col">
+            <div class="right-header">Event Timeline</div>
+            <ul id="events"></ul>
+        </div>
     </div>
 
     <script>
         let ws = null;
         // Monotonic counter so repeated step executions (e.g. builder on
-        // adjust rounds) get unique card ids. getElementById returns only
-        // the first match when ids collide, which left later cards stuck on
-        // "running..." forever.
+        // adjust rounds or batch loops) get unique card ids.
         let stepRound = 0;
         // Map stepId → latest card id suffix, so updateStepCard and
         // appendStepProgress target the most recent card for that step.
         const latestCardId = {};
-        const stepOrder = ['planner', 'builder', 'reviewer', 'renderer', 'wait_for_adjust'];
-        const stepNames = {
-            planner: 'Planner',
-            builder: 'Builder',
-            reviewer: 'Reviewer',
-            renderer: 'Renderer',
-            wait_for_adjust: 'Wait for Adjust',
-        };
+        // Map stepId → round count (for left-column round badges)
+        const stepRounds = {};
+        // Track current active step
+        let currentStepId = null;
+        // Track total cost
+        let totalCost = 0;
+        // Store step outputs for review cards
+        const stepOutputs = {};
+        // Store step structured outputs
+        const stepStructured = {};
 
+        const stepConfig = {
+            scene_refiner:      { name: 'Scene Refiner',      icon: '✨', desc: '细化场景描述' },
+            scene_review:       { name: 'Scene Review',       icon: '👁️', desc: '人工审批细化结果' },
+            scene_analyst:      { name: 'Scene Analyst',      icon: '🔍', desc: '分析场景描述' },
+            object_planner:     { name: 'Object Planner',     icon: '📦', desc: '规划物体清单' },
+            builder:            { name: 'Builder',            icon: '🔨', desc: '构建 3D 场景' },
+            lighting_planner:   { name: 'Lighting Planner',   icon: '💡', desc: '规划灯光与相机' },
+            material_artist:    { name: 'Material Artist',    icon: '🎨', desc: '添加材质' },
+            lighting_designer:  { name: 'Lighting Designer',  icon: '🌟', desc: '布置灯光' },
+            reviewer:           { name: 'Reviewer',           icon: '✅', desc: '审阅场景质量' },
+            renderer:           { name: 'Renderer',           icon: '📸', desc: '渲染场景' },
+            wait_for_adjust:    { name: 'Wait',               icon: '⏸️', desc: '等待调整指令' },
+        };
+        const stepOrder = ['scene_refiner', 'scene_review', 'scene_analyst', 'object_planner', 'builder',
+                           'lighting_planner', 'material_artist', 'lighting_designer', 'reviewer', 'renderer', 'wait_for_adjust'];
+
+        // ===== Init: build left column flowchart =====
+        function buildFlowchart() {
+            const container = document.getElementById('left-col');
+            container.innerHTML = '';
+            stepOrder.forEach(id => {
+                const cfg = stepConfig[id];
+                const node = document.createElement('div');
+                node.className = 'flow-node pending';
+                node.id = 'node-' + id;
+                node.innerHTML = `
+                    <span class="flow-node-icon">${cfg.icon}</span>
+                    <div class="flow-node-info">
+                        <div class="flow-node-name">${cfg.name}</div>
+                        <div class="flow-node-desc">${cfg.desc}</div>
+                    </div>
+                    <span class="flow-node-dot"></span>
+                `;
+                container.appendChild(node);
+            });
+        }
+        buildFlowchart();
+
+        // ===== Task submission =====
         function submitTask() {
             const desc = document.getElementById('description').value.trim();
             if (!desc) return;
 
             document.getElementById('submit-btn').disabled = true;
             document.getElementById('events').innerHTML = '';
-            document.getElementById('step-details').innerHTML = '';
-            resetNodes();
+            resetFlowchart();
+            resetState();
+            showCenterEmpty();
 
             fetch('/api/task', {
                 method: 'POST',
@@ -182,55 +845,105 @@
                 handleEvent(event);
             };
             ws.onclose = () => {
-                document.getElementById('submit-btn').disabled = false;
+                // Re-enable submit unless we're in wait_for_adjust
+                if (currentStepId !== 'wait_for_adjust') {
+                    document.getElementById('submit-btn').disabled = false;
+                }
             };
         }
 
+        // ===== Event handler =====
         function handleEvent(event) {
+            const type = event.type;
+
+            if (type === 'step_progress') {
+                // High-frequency — update center column only, don't add to event list
+                handleStepProgress(event);
+                return;
+            }
+
             const list = document.getElementById('events');
             const li = document.createElement('li');
             const ts = new Date().toLocaleTimeString();
-            const type = event.type;
 
             if (type === 'step_started') {
                 const stepId = event.step_id;
-                const stepName = event.step_name || stepNames[stepId] || stepId;
-                li.textContent = `[${ts}] ▶ ${stepName}`;
+                const cfg = stepConfig[stepId] || { name: event.step_name || stepId, icon: '🔹', desc: '' };
+                const stepName = cfg.name;
+
+                // Track rounds for repeated steps
+                stepRounds[stepId] = (stepRounds[stepId] || 0) + 1;
+                currentStepId = stepId;
+
+                li.innerHTML = `
+                    <span class="event-icon">▶</span>
+                    <div class="event-body">
+                        <span class="event-text">${stepName} started</span>
+                        ${stepRounds[stepId] > 1 ? `<div class="event-meta">round ${stepRounds[stepId]}</div>` : ''}
+                    </div>
+                    <span class="event-ts">${ts}</span>
+                `;
                 li.className = 'event-step_started';
+
                 setActiveNode(stepId);
+                updateTopbarStep(stepId);
+                setStatusBadge('running', 'Running');
+
+                // Initialize center column for this step
+                initCenterForStep(stepId, stepRounds[stepId]);
+
                 if (stepId === 'wait_for_adjust') {
                     showAdjustSection();
                 }
-                addStepCard(stepId, stepName);
             } else if (type === 'step_finished') {
                 const stepId = event.step_id;
-                const stepName = stepNames[stepId] || stepId;
+                const cfg = stepConfig[stepId] || { name: stepId, icon: '🔹' };
+                const stepName = cfg.name;
                 const output = event.output || '';
                 const toolCount = event.tool_calls_count || 0;
                 const cost = event.cost;
                 const structured = event.structured;
 
-                li.textContent = `[${ts}] ✔ ${stepName}`;
-                if (toolCount > 0) {
-                    li.innerHTML += `<span class="event-meta">${toolCount} tool calls</span>`;
+                // Store output for review cards
+                if (output) stepOutputs[stepId] = output;
+                if (structured) stepStructured[stepId] = structured;
+
+                // Accumulate cost
+                if (cost && cost.total_cost) {
+                    totalCost += cost.total_cost;
+                } else if (cost && cost.input_tokens && cost.output_tokens) {
+                    // Estimate if total_cost not provided
+                    totalCost += (cost.input_tokens * 0.01 + cost.output_tokens * 0.03) / 1000;
                 }
-                if (cost && cost.input_tokens > 0) {
-                    li.innerHTML += `<span class="event-meta">${cost.input_tokens}↓ ${cost.output_tokens}↑ tokens</span>`;
-                }
+                updateCostDisplay();
+
+                let metaParts = [];
+                if (toolCount > 0) metaParts.push(`${toolCount} tools`);
+                if (cost && cost.input_tokens > 0) metaParts.push(`${cost.input_tokens}↓ ${cost.output_tokens}↑`);
+
+                li.innerHTML = `
+                    <span class="event-icon">✔</span>
+                    <div class="event-body">
+                        <span class="event-text">${stepName} finished</span>
+                        ${metaParts.length ? `<div class="event-meta">${metaParts.join(' · ')}</div>` : ''}
+                    </div>
+                    <span class="event-ts">${ts}</span>
+                `;
                 li.className = 'event-step_finished';
 
-                // Show a truncated output preview in the event stream
+                // Show output preview in timeline
                 if (output && output.trim()) {
                     const preview = output.length > 200 ? output.slice(0, 200) + '...' : output;
-                    const div = document.createElement('div');
-                    div.className = 'event-output';
-                    div.textContent = preview;
-                    li.appendChild(div);
+                    const previewDiv = document.createElement('div');
+                    previewDiv.className = 'event-output-preview';
+                    previewDiv.textContent = preview;
+                    li.querySelector('.event-body').appendChild(previewDiv);
                 }
 
                 setDoneNode(stepId);
-                updateStepCard(stepId, 'done', output, toolCount, cost, structured);
+                updateStepCardFinished(stepId, output, toolCount, cost, structured);
 
+                // Handle renderer completion
                 if (stepId === 'renderer') {
                     const imagePath = structured?.image_path;
                     if (imagePath) {
@@ -239,201 +952,374 @@
                     }
                 }
                 if (stepId === 'wait_for_adjust') {
-                    hideAdjustSection();
+                    // Don't hide adjust — it stays visible with the render
                 }
             } else if (type === 'paused') {
-                li.textContent = `[${ts}] ⏸ Paused: ${event.reason}`;
+                const reason = event.reason || '';
+                li.innerHTML = `
+                    <span class="event-icon">⏸</span>
+                    <div class="event-body">
+                        <span class="event-text">Paused: ${reason}</span>
+                    </div>
+                    <span class="event-ts">${ts}</span>
+                `;
                 li.className = 'event-paused';
-                showReviewSection();
+                setStatusBadge('paused', 'Paused');
+                showReviewCard(reason);
             } else if (type === 'resumed') {
-                li.textContent = `[${ts}] ▶ Resumed`;
+                li.innerHTML = `
+                    <span class="event-icon">▶</span>
+                    <div class="event-body">
+                        <span class="event-text">Resumed</span>
+                    </div>
+                    <span class="event-ts">${ts}</span>
+                `;
                 li.className = 'event-resumed';
-                hideReviewSection();
+                setStatusBadge('running', 'Running');
+                hideReviewCard();
             } else if (type === 'failed') {
-                li.textContent = `[${ts}] ✗ Failed: ${event.error}`;
+                li.innerHTML = `
+                    <span class="event-icon">✗</span>
+                    <div class="event-body">
+                        <span class="event-text">Failed: ${escapeHtml(event.error || '')}</span>
+                    </div>
+                    <span class="event-ts">${ts}</span>
+                `;
                 li.className = 'event-failed';
+                if (currentStepId) setFailedNode(currentStepId);
+                setStatusBadge('failed', 'Failed');
                 document.getElementById('submit-btn').disabled = false;
             } else if (type === 'cancelled') {
-                li.textContent = `[${ts}] ✗ Cancelled: ${event.reason}`;
-                li.className = 'event-failed';
+                li.innerHTML = `
+                    <span class="event-icon">✗</span>
+                    <div class="event-body">
+                        <span class="event-text">Cancelled: ${escapeHtml(event.reason || '')}</span>
+                    </div>
+                    <span class="event-ts">${ts}</span>
+                `;
+                li.className = 'event-cancelled';
+                setStatusBadge('failed', 'Cancelled');
                 document.getElementById('submit-btn').disabled = false;
-            } else if (type === 'step_progress') {
-                // StepProgress is high-frequency — update the step card's
-                // progress area, don't add to the event stream list.
-                appendStepProgress(event.step_id, event.progress);
-                return;
             } else {
-                li.textContent = `[${ts}] ${JSON.stringify(event)}`;
+                li.innerHTML = `
+                    <span class="event-icon">•</span>
+                    <div class="event-body">
+                        <span class="event-text">${escapeHtml(JSON.stringify(event))}</span>
+                    </div>
+                    <span class="event-ts">${ts}</span>
+                `;
             }
 
             list.prepend(li);
 
-            // Cap event list length to prevent unbounded growth.
-            while (list.children.length > 50) {
+            // Cap event list at 30
+            while (list.children.length > 30) {
                 list.removeChild(list.lastChild);
             }
         }
 
-        function addStepCard(stepId, stepName) {
-            const container = document.getElementById('step-details');
-            const round = stepRound++;
-            const cardId = `card-${stepId}-${round}`;
-            latestCardId[stepId] = cardId;
-            const card = document.createElement('div');
-            card.className = 'step-card active';
-            card.id = cardId;
-            card.dataset.stepId = stepId;
-            card.innerHTML = `
-                <div class="step-card-header">
-                    <span class="step-card-title">${stepName}</span>
-                    <span class="step-card-status">running...</span>
-                </div>
-                <div class="step-card-progress" id="progress-${stepId}-${round}"></div>
-            `;
-            container.appendChild(card);
-        }
-        /// Update a step card's progress area with a live tool-call event.
-        /// Keeps only the last 5 progress items to avoid unbounded growth.
-        function appendStepProgress(stepId, progress) {
-            const cardId = latestCardId[stepId];
-            if (!cardId) return;
-            const progressDiv = document.querySelector(`#${cardId} .step-card-progress`);
-            if (!progressDiv) return;
-
-            const item = document.createElement('div');
-            item.className = 'progress-item active';
+        // ===== Step progress (high-frequency, center column only) =====
+        function handleStepProgress(event) {
+            const stepId = event.step_id;
+            const progress = event.progress;
+            if (!progress) return;
 
             const type = progress.type;
-            if (type === 'tool_call_start') {
-                item.textContent = `→ ${progress.name}(...)`;
-            } else if (type === 'tool_call_end') {
-                item.textContent = `  args: ${JSON.stringify(progress.args).slice(0, 120)}`;
-            } else if (type === 'tool_execution_start') {
-                item.textContent = `  executing ${progress.tool_name}...`;
-            } else if (type === 'tool_execution_end') {
-                // Update the matching tool_call_start item instead of adding a new one.
-                const items = progressDiv.querySelectorAll('.progress-item');
-                if (items.length > 0) {
-                    const last = items[items.length - 1];
-                    if (progress.ok) {
-                        last.className = 'progress-item ok';
-                    } else {
-                        last.className = 'progress-item err';
-                        last.textContent += ` ✗ ${progress.error || 'failed'}`;
-                    }
-                }
-                return; // Don't add a new item for execution end.
-            } else if (type === 'turn_end') {
-                item.textContent = `── turn ${progress.index} end ──`;
-                item.className = 'progress-item';
-            } else if (type === 'message_end') {
-                // For tool-less steps (planner), this is the only progress signal.
+
+            if (type === 'message_end') {
+                // LLM text output — show in center column
                 const kind = progress.kind || 'final_answer';
-                item.textContent = kind === 'progress' ? '✎ generating (intermediate)...' : '✎ response ready';
-                item.className = kind === 'progress' ? 'progress-item active' : 'progress-item ok';
+                // The text content might be in progress.name or progress.args
+                const text = progress.name || (progress.args ? (typeof progress.args === 'string' ? progress.args : JSON.stringify(progress.args)) : '');
+                if (text) {
+                    appendLLMOutput(stepId, text, kind);
+                }
             } else {
+                // Tool call events — update tool cards
+                appendToolProgress(stepId, progress);
+            }
+        }
+
+        // ===== Center column management =====
+        function showCenterEmpty() {
+            const center = document.getElementById('center-col');
+            center.innerHTML = `
+                <div class="center-empty">
+                    <div class="big-icon">🎨</div>
+                    <div class="hint">Enter a scene description and click Generate</div>
+                </div>
+            `;
+        }
+
+        function initCenterForStep(stepId, round) {
+            const center = document.getElementById('center-col');
+            const cfg = stepConfig[stepId] || { name: stepId, icon: '🔹', desc: '' };
+
+            // Don't reset center for wait_for_adjust — keep render visible + show adjust
+            if (stepId === 'wait_for_adjust') {
+                // If render image exists, keep it; add adjust section
+                showAdjustSection();
                 return;
             }
 
-            progressDiv.appendChild(item);
+            // Don't reset for scene_review — it's an executor pause, handled by showReviewCard
+            if (stepId === 'scene_review') {
+                return;
+            }
 
-            // Keep only the last 5 items.
-            while (progressDiv.children.length > 5) {
-                progressDiv.removeChild(progressDiv.firstChild);
+            // For renderer, show spinner (will be replaced by image on finish)
+            if (stepId === 'renderer') {
+                center.innerHTML = `
+                    <div class="render-spinner">
+                        <div class="spinner"></div>
+                        <div class="label">Rendering...</div>
+                    </div>
+                `;
+                return;
             }
-        }
 
-        function updateStepCard(stepId, status, output, toolCount, cost, structured) {
-            const cardId = latestCardId[stepId];
-            const card = cardId ? document.getElementById(cardId) : null;
-            if (!card) return;
-            card.className = `step-card ${status}`;
-            const statusText = status === 'done' ? '✓ complete' : status;
-            let metaParts = [];
-            if (toolCount > 0) metaParts.push(`${toolCount} tool calls`);
-            if (cost && cost.input_tokens > 0) metaParts.push(`${cost.input_tokens}↓ ${cost.output_tokens}↑ tokens`);
-            let bodyHtml = '';
-            if (output && output.trim()) {
-                bodyHtml += `<div class="step-card-body">${escapeHtml(output)}</div>`;
-            }
-            if (structured) {
-                bodyHtml += `<div class="step-card-meta">structured: ${escapeHtml(JSON.stringify(structured))}</div>`;
-            }
-            // Preserve existing progress area.
-            const progressHtml = card.querySelector('.step-card-progress')?.outerHTML || '';
-            card.innerHTML = `
-                <div class="step-card-header">
-                    <span class="step-card-title">${stepNames[stepId] || stepId}</span>
-                    <span class="step-card-status">${statusText}${metaParts.length ? ' · ' + metaParts.join(' · ') : ''}</span>
+            // For LLM steps — show step header + LLM output area + tool cards area
+            const roundBadge = round > 1 ? ` <span style="font-size:14px;color:var(--grad-end);">×${round}</span>` : '';
+            center.innerHTML = `
+                <div class="step-header">
+                    <span class="step-header-icon">${cfg.icon}</span>
+                    <div class="step-header-text">
+                        <h2>${cfg.name}${roundBadge}</h2>
+                        <div class="step-desc">${cfg.desc}</div>
+                    </div>
                 </div>
-                ${bodyHtml}
-                ${progressHtml}
+                <div class="glass-card" id="llm-output-card">
+                    <div class="llm-output-label">
+                        <span class="thinking-dot"></span>
+                        AI Thinking
+                    </div>
+                    <div class="llm-output" id="llm-output-${stepId}-${round}"></div>
+                </div>
+                <div class="tool-cards-container" id="tool-cards-${stepId}-${round}"></div>
             `;
+
+            // Track the current round's container ids
+            latestCardId[stepId] = `${stepId}-${round}`;
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        function appendLLMOutput(stepId, text, kind) {
+            const cardId = latestCardId[stepId];
+            if (!cardId) return;
+            const outputDiv = document.getElementById(`llm-output-${cardId}`);
+            if (!outputDiv) return;
+
+            if (kind === 'progress') {
+                // Intermediate — append with dim styling
+                const span = document.createElement('span');
+                span.style.color = 'var(--text-dim)';
+                span.textContent = text;
+                outputDiv.appendChild(span);
+            } else {
+                // Final answer — append with normal styling
+                const span = document.createElement('span');
+                span.textContent = text;
+                outputDiv.appendChild(span);
+            }
+            outputDiv.scrollTop = outputDiv.scrollHeight;
         }
 
-        function setActiveNode(stepId) {
-            const node = document.getElementById('node-' + stepId);
-            if (node) node.classList.add('active');
-        }
+        function appendToolProgress(stepId, progress) {
+            const cardId = latestCardId[stepId];
+            if (!cardId) return;
+            const container = document.getElementById(`tool-cards-${cardId}`);
+            if (!container) return;
 
-        function setDoneNode(stepId) {
-            const node = document.getElementById('node-' + stepId);
-            if (node) {
-                node.classList.remove('active');
-                node.classList.add('done');
+            const type = progress.type;
+
+            if (type === 'tool_call_start') {
+                const card = document.createElement('div');
+                card.className = 'tool-card';
+                card.dataset.toolName = progress.name || '';
+                card.innerHTML = `
+                    <div class="tool-card-header">
+                        <span class="tool-card-status-dot executing"></span>
+                        <span class="tool-card-name">${escapeHtml(progress.name || 'tool')}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+
+                // Keep max 8 cards
+                while (container.children.length > 8) {
+                    container.removeChild(container.firstChild);
+                }
+            } else if (type === 'tool_call_end') {
+                const cards = container.querySelectorAll('.tool-card');
+                if (cards.length === 0) return;
+                const last = cards[cards.length - 1];
+                const argsStr = progress.args ? JSON.stringify(progress.args).slice(0, 120) : '';
+                const argsDiv = document.createElement('div');
+                argsDiv.className = 'tool-card-args';
+                argsDiv.textContent = argsStr;
+                last.appendChild(argsDiv);
+            } else if (type === 'tool_execution_start') {
+                const cards = container.querySelectorAll('.tool-card');
+                if (cards.length === 0) return;
+                const last = cards[cards.length - 1];
+                const dot = last.querySelector('.tool-card-status-dot');
+                if (dot) dot.className = 'tool-card-status-dot executing';
+            } else if (type === 'tool_execution_end') {
+                const cards = container.querySelectorAll('.tool-card');
+                if (cards.length === 0) return;
+                const last = cards[cards.length - 1];
+                const dot = last.querySelector('.tool-card-status-dot');
+                if (progress.ok) {
+                    if (dot) dot.className = 'tool-card-status-dot ok';
+                    // Add result summary if available
+                    const result = progress.result;
+                    if (result) {
+                        const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+                        const resultDiv = document.createElement('div');
+                        resultDiv.className = 'tool-card-result';
+                        resultDiv.textContent = resultStr.slice(0, 120);
+                        last.appendChild(resultDiv);
+                    }
+                } else {
+                    if (dot) dot.className = 'tool-card-status-dot err';
+                    const errDiv = document.createElement('div');
+                    errDiv.className = 'tool-card-result err';
+                    errDiv.textContent = progress.error || 'failed';
+                    last.appendChild(errDiv);
+                }
             }
         }
 
-        function resetNodes() {
-            stepOrder.forEach(id => {
-                const node = document.getElementById('node-' + id);
-                if (node) {
-                    node.classList.remove('active', 'done');
+        function updateStepCardFinished(stepId, output, toolCount, cost, structured) {
+            // For LLM steps, append the final output to the LLM area if not already there
+            const cardId = latestCardId[stepId];
+            if (!cardId) return;
+
+            const outputDiv = document.getElementById(`llm-output-${cardId}`);
+            if (outputDiv && output && output.trim()) {
+                // If the output isn't already in the div, append it
+                const currentText = outputDiv.textContent;
+                if (!currentText.includes(output.slice(0, 100))) {
+                    outputDiv.textContent = output;
+                }
+            }
+
+            // Update the thinking dot to show completion
+            const label = document.querySelector(`#llm-output-card .llm-output-label .thinking-dot`);
+            if (label) {
+                label.style.background = 'var(--success)';
+                label.style.animation = 'none';
+            }
+        }
+
+        // ===== Review cards (two pause types) =====
+        function showReviewCard(reason) {
+            const center = document.getElementById('center-col');
+            const isSceneReview = (reason && reason.includes('scene')) || currentStepId === 'scene_review';
+
+            if (isSceneReview) {
+                // Scene Review — show refined description from scene_refiner output
+                const refinedDesc = stepOutputs['scene_refiner'] || stepStructured['scene_refiner']?.refined_description || '(no description available)';
+                center.innerHTML = `
+                    <div class="review-card" id="review-card">
+                        <div class="review-card-title">👁️ Scene Review</div>
+                        <div style="color:var(--text-dim);font-size:14px;">Review the AI-refined scene description:</div>
+                        <div class="review-card-content">${escapeHtml(refinedDesc)}</div>
+                        <textarea class="review-feedback" id="scene-review-feedback" placeholder="Feedback (optional if approved)"></textarea>
+                        <div class="review-buttons">
+                            <button class="btn-reject" onclick="submitSceneReview(false)">✗ Reject</button>
+                            <button class="btn-approve" onclick="submitSceneReview(true)">✓ Approve</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Reviewer pause — show review summary from reviewer output
+                const reviewSummary = stepOutputs['reviewer'] || '(no review summary available)';
+                center.innerHTML = `
+                    <div class="review-card" id="review-card">
+                        <div class="review-card-title">✅ Quality Review</div>
+                        <div style="color:var(--text-dim);font-size:14px;">Review the scene quality assessment:</div>
+                        <div class="review-card-content">${escapeHtml(reviewSummary)}</div>
+                        <textarea class="review-feedback" id="reviewer-feedback" placeholder="Feedback (optional if approved)"></textarea>
+                        <div class="review-buttons">
+                            <button class="btn-reject" onclick="submitReview(false)">✗ Reject</button>
+                            <button class="btn-approve" onclick="submitReview(true)">✓ Approve</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function hideReviewCard() {
+            // Don't clear center — the next step_started will handle it
+        }
+
+        function submitSceneReview(approved) {
+            const feedback = (document.getElementById('scene-review-feedback') || {}).value || '';
+            fetch('/api/scene-review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ approved, feedback }),
+            }).then(resp => {
+                if (resp.status === 409) {
+                    alert('No active scene review pause.');
+                } else if (resp.ok) {
+                    hideReviewCard();
                 }
             });
         }
 
-        function showReviewSection() {
-            document.getElementById('review-section').classList.add('active');
-        }
-
-        function hideReviewSection() {
-            document.getElementById('review-section').classList.remove('active');
-        }
-
         function submitReview(passed) {
-            const feedback = document.getElementById('feedback').value;
+            const feedback = (document.getElementById('reviewer-feedback') || {}).value || '';
             fetch('/api/review', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ passed, feedback }),
             }).then(resp => {
-                if (resp.ok) {
-                    hideReviewSection();
+                if (resp.status === 409) {
+                    alert('No active review pause.');
+                } else if (resp.ok) {
+                    hideReviewCard();
                 }
             });
         }
 
+        // ===== Render image =====
         function loadRenderImage(filename) {
-            const img = document.getElementById('render-img');
-            img.src = '/api/render/' + filename + '?' + Date.now();
-            img.style.display = 'block';
+            const center = document.getElementById('center-col');
+            // Check if adjust section is already visible
+            const adjustVisible = document.getElementById('adjust-card');
+
+            let html = `
+                <div class="render-result">
+                    <img src="/api/render/${filename}?${Date.now()}" alt="Rendered scene" />
+                </div>
+            `;
+
+            if (adjustVisible) {
+                // Keep adjust section, prepend render
+                const adjustHtml = adjustVisible.outerHTML;
+                center.innerHTML = html + adjustHtml;
+            } else {
+                center.innerHTML = html;
+            }
             document.getElementById('submit-btn').disabled = false;
+            setStatusBadge('done', 'Done');
         }
 
+        // ===== Adjust section =====
         function showAdjustSection() {
-            document.getElementById('adjust-section').style.display = 'block';
-            document.getElementById('adjust-btn').disabled = false;
-        }
+            const center = document.getElementById('center-col');
+            // Check if render image is already shown
+            const existingImg = center.querySelector('.render-result img');
+            const renderHtml = existingImg ? `<div class="render-result">${existingImg.parentElement.innerHTML}</div>` : '';
 
-        function hideAdjustSection() {
-            document.getElementById('adjust-section').style.display = 'none';
+            center.innerHTML = renderHtml + `
+                <div class="adjust-card" id="adjust-card">
+                    <div class="adjust-card-title">⏸️ Adjust Scene</div>
+                    <div style="color:var(--text-dim);font-size:14px;">The scene is ready. Describe any adjustments:</div>
+                    <textarea class="adjust-input" id="adjust-instruction" placeholder="e.g. Make the sofa red, add a lamp on the table"></textarea>
+                    <button class="btn-apply" id="adjust-btn" onclick="submitAdjust()">Apply Adjustment</button>
+                </div>
+            `;
         }
 
         function submitAdjust() {
@@ -454,9 +1340,104 @@
                     alert('Failed to submit adjustment');
                     document.getElementById('adjust-btn').disabled = false;
                 }
-                // On success, the WS is still connected to the same engine.
-                // Events will flow as the builder runs.
+                // On success, events will flow as the builder runs.
             });
+        }
+
+        // ===== Flowchart node management =====
+        function setActiveNode(stepId) {
+            const node = document.getElementById('node-' + stepId);
+            if (node) {
+                node.classList.remove('pending', 'done', 'failed');
+                node.classList.add('active');
+            }
+            // Show round badge if repeated
+            if (stepRounds[stepId] > 1) {
+                const info = node?.querySelector('.flow-node-info');
+                const existing = info?.querySelector('.flow-node-round');
+                if (!existing && info) {
+                    const badge = document.createElement('span');
+                    badge.className = 'flow-node-round';
+                    badge.textContent = '×' + stepRounds[stepId];
+                    info.appendChild(badge);
+                } else if (existing) {
+                    existing.textContent = '×' + stepRounds[stepId];
+                }
+            }
+        }
+
+        function setDoneNode(stepId) {
+            const node = document.getElementById('node-' + stepId);
+            if (node) {
+                node.classList.remove('active', 'pending');
+                node.classList.add('done');
+            }
+        }
+
+        function setFailedNode(stepId) {
+            const node = document.getElementById('node-' + stepId);
+            if (node) {
+                node.classList.remove('active', 'pending');
+                node.classList.add('failed');
+            }
+        }
+
+        function resetFlowchart() {
+            stepOrder.forEach(id => {
+                const node = document.getElementById('node-' + id);
+                if (node) {
+                    node.classList.remove('active', 'done', 'failed');
+                    node.classList.add('pending');
+                }
+                // Remove round badges
+                const badge = node?.querySelector('.flow-node-round');
+                if (badge) badge.remove();
+            });
+        }
+
+        function resetState() {
+            stepRound = 0;
+            stepRounds = {};
+            currentStepId = null;
+            totalCost = 0;
+            Object.keys(latestCardId).forEach(k => delete latestCardId[k]);
+            Object.keys(stepOutputs).forEach(k => delete stepOutputs[k]);
+            Object.keys(stepStructured).forEach(k => delete stepStructured[k]);
+            updateCostDisplay();
+            updateTopbarStep(null);
+            setStatusBadge('', 'Idle');
+        }
+
+        // ===== Topbar updates =====
+        function updateTopbarStep(stepId) {
+            const iconEl = document.getElementById('current-step-icon');
+            const nameEl = document.getElementById('current-step-name');
+            if (!stepId) {
+                iconEl.textContent = '⚪';
+                nameEl.textContent = 'Idle';
+            } else {
+                const cfg = stepConfig[stepId] || { name: stepId, icon: '🔹' };
+                iconEl.textContent = cfg.icon;
+                nameEl.textContent = cfg.name;
+            }
+        }
+
+        function updateCostDisplay() {
+            document.getElementById('cost-display').textContent = '$' + totalCost.toFixed(3);
+        }
+
+        function setStatusBadge(cls, text) {
+            const badge = document.getElementById('status-badge');
+            badge.className = '';
+            if (cls) badge.classList.add(cls);
+            badge.innerHTML = `<span class="badge-dot"></span>${text}`;
+        }
+
+        // ===== Utility =====
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>

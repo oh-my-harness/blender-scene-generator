@@ -190,9 +190,15 @@ def _run_scene_workflow(state, description: str) -> None:
         build_workflow,
         create_blender_judge,
         create_render_executor,
+        create_scene_review_executor,
         create_wait_for_adjust_executor,
+        SCENE_REFINER_SYSTEM,
+        SCENE_ANALYST_SYSTEM,
+        OBJECT_PLANNER_SYSTEM,
+        LIGHTING_PLANNER_SYSTEM,
         BUILDER_SYSTEM,
-        PLANNER_SYSTEM,
+        MATERIAL_ARTIST_SYSTEM,
+        LIGHTING_DESIGNER_SYSTEM,
         REVIEWER_SYSTEM,
     )
 
@@ -239,8 +245,13 @@ def _run_scene_workflow(state, description: str) -> None:
     engine = engine.with_hooks([should_stop_hook._hook, before_run_hook._hook, steer_hook._hook])
 
     # ── Per-step system prompts ──
-    engine = engine.with_step_plugin("planner", create_system_prompt_plugin(PLANNER_SYSTEM))
+    engine = engine.with_step_plugin("scene_refiner", create_system_prompt_plugin(SCENE_REFINER_SYSTEM))
+    engine = engine.with_step_plugin("scene_analyst", create_system_prompt_plugin(SCENE_ANALYST_SYSTEM))
+    engine = engine.with_step_plugin("object_planner", create_system_prompt_plugin(OBJECT_PLANNER_SYSTEM))
     engine = engine.with_step_plugin("builder", create_system_prompt_plugin(BUILDER_SYSTEM))
+    engine = engine.with_step_plugin("lighting_planner", create_system_prompt_plugin(LIGHTING_PLANNER_SYSTEM))
+    engine = engine.with_step_plugin("material_artist", create_system_prompt_plugin(MATERIAL_ARTIST_SYSTEM))
+    engine = engine.with_step_plugin("lighting_designer", create_system_prompt_plugin(LIGHTING_DESIGNER_SYSTEM))
     engine = engine.with_step_plugin("reviewer", create_system_prompt_plugin(REVIEWER_SYSTEM))
 
     # ── Review channel ──
@@ -262,10 +273,13 @@ def _run_scene_workflow(state, description: str) -> None:
         engine = engine.with_tool(tool._tool)
     logger.info("engine ready: %d tools registered", len(tools))
 
-    # ── Executors: renderer + wait_for_adjust ──
+    # ── Executors: renderer + wait_for_adjust + scene_review ──
     render_executor = create_render_executor(state.bridge, state.render_dir)
     engine = engine.with_executor("render_executor", render_executor._executor)
     engine = engine.with_executor("wait_for_adjust", adjust_executor._executor)
+    scene_review_executor, scene_review_handle = create_scene_review_executor()
+    state.scene_review_handle = scene_review_handle
+    engine = engine.with_executor("scene_review_executor", scene_review_executor._executor)
 
     # ── Write user description into context ──
     # The planner step reads this from the context variables.

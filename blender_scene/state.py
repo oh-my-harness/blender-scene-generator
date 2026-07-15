@@ -56,6 +56,7 @@ class AppState:
         self.engine: Any = None
         self.review_handle: Any = None
         self.adjust_handle: Any = None
+        self.scene_review_handle: Any = None
         self.event_iterator: Any = None
         self.task_id: str | None = None
 
@@ -97,5 +98,6 @@ class AppState:
         self.engine = None
         self.review_handle = None
         self.adjust_handle = None
+        self.scene_review_handle = None
         self.event_iterator = None
         self.task_id = None

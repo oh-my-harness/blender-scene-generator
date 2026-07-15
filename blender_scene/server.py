@@ -66,6 +66,12 @@ class ReviewRequest(BaseModel):
     feedback: str = ""
 
 
+
+class SceneReviewRequest(BaseModel):
+    """POST /api/scene-review request body."""
+    approved: bool
+    feedback: str = ""
+
 # ── App factory ────────────────────────────────────────────────
 
 def create_app(
@@ -186,6 +192,29 @@ def create_app(
         return JSONResponse(
             status_code=200,
             content={"message": "review submitted"},
+        )
+
+    # ── POST /api/scene-review ──────────────────────────────────
+
+    @app.post("/api/scene-review")
+    async def submit_scene_review(req: SceneReviewRequest):
+        """Submit a human scene review decision (approve/reject refined description).
+
+        提交人工场景审批决策（批准/拒绝细化后的描述）。
+
+        Returns 200 if submitted, 409 if no active scene review.
+        """
+        handle = state.scene_review_handle
+        if handle is None:
+            return JSONResponse(
+                status_code=409,
+                content={"error": "no active scene review"},
+            )
+
+        handle.submit(req.approved, req.feedback)
+        return JSONResponse(
+            status_code=200,
+            content={"message": "scene review submitted"},
         )
 
     # ── GET /api/status ─────────────────────────────────────────
