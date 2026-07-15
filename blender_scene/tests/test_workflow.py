@@ -55,9 +55,9 @@ def test_build_workflow_entry_is_scene_refiner():
     assert wf["entry_step"] == "scene_refiner"
 
 
-def test_build_workflow_has_14_edges():
+def test_build_workflow_has_13_edges():
     wf = build_workflow()
-    assert len(wf["edges"]) == 14
+    assert len(wf["edges"]) == 13
 
 
 def test_build_workflow_step_types():
@@ -202,12 +202,12 @@ def test_judge_routes_object_planner_has_more_to_builder():
     assert judge(ctx) == "to:builder"
 
 
-def test_judge_routes_object_planner_no_more_to_lighting_planner():
-    """object_planner with has_more=false → to:lighting_planner."""
+def test_judge_routes_object_planner_to_builder():
+    """object_planner always → to:builder (builder handles batch loop routing)."""
     judge = create_blender_judge()
     ctx = {"step_id": "object_planner", "output": "", "step_count": 0,
            "structured": {"objects": [], "has_more": False}}
-    assert judge(ctx) == "to:lighting_planner"
+    assert judge(ctx) == "to:builder"
 
 
 def test_judge_routes_builder_after_has_more_back_to_object_planner():
@@ -221,14 +221,14 @@ def test_judge_routes_builder_after_has_more_back_to_object_planner():
     assert judge(ctx) == "to:object_planner"
 
 
-def test_judge_routes_builder_after_no_more_to_material_artist():
-    """builder after object_planner with has_more=false → to:material_artist."""
+def test_judge_routes_builder_after_no_more_to_lighting_planner():
+    """builder after object_planner with has_more=false → to:lighting_planner."""
     judge = create_blender_judge()
     # object_planner says has_more=false (last batch)
     judge({"step_id": "object_planner", "output": "", "step_count": 0,
            "structured": {"objects": [], "has_more": False}})
     ctx = {"step_id": "builder", "output": "", "step_count": 1, "structured": None}
-    assert judge(ctx) == "to:material_artist"
+    assert judge(ctx) == "to:lighting_planner"
 
 
 def test_judge_routes_lighting_planner_to_material_artist():

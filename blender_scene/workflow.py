@@ -235,12 +235,11 @@ def build_workflow() -> dict:
             {"from": "scene_refiner", "to": "scene_review"},
             {"from": "scene_review", "to": "scene_analyst"},
             {"from": "scene_analyst", "to": "object_planner"},
-            # object_planner → builder (batch loop forward) or lighting_planner (batch done)
+            # object_planner → builder (always, builder handles batch loop)
             {"from": "object_planner", "to": "builder"},
-            {"from": "object_planner", "to": "lighting_planner"},
-            # builder → object_planner (batch loop back) or material_artist (batch done)
+            # builder → object_planner (batch loop back) or lighting_planner (batch done)
             {"from": "builder", "to": "object_planner"},
-            {"from": "builder", "to": "material_artist"},
+            {"from": "builder", "to": "lighting_planner"},
             {"from": "lighting_planner", "to": "material_artist"},
             {"from": "material_artist", "to": "lighting_designer"},
             {"from": "lighting_designer", "to": "reviewer"},
@@ -353,14 +352,17 @@ def create_blender_judge():
             # Cache has_more for the subsequent builder routing decision
             has_more = (structured or {}).get("has_more", False)
             state["has_more"] = bool(has_more)
-            result = "to:builder" if has_more else "to:lighting_planner"
+            # Always go to builder first — builder will route back to
+            # object_planner if has_more, or forward to material_artist.
+            result = "to:builder"
 
         elif step_id == "builder":
-            # Batch loop: if has_more, go back to object_planner; else forward to material_artist
+            # Batch loop: if has_more, go back to object_planner for next batch;
+            # else forward to lighting_planner (which precedes material_artist).
             if state["has_more"]:
                 result = "to:object_planner"
             else:
-                result = "to:material_artist"
+                result = "to:lighting_planner"
 
         elif step_id == "lighting_planner":
             result = "to:material_artist"
