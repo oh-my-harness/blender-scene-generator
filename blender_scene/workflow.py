@@ -74,9 +74,9 @@ LIGHTING_PLANNER_PROMPT = r"""你是一名 3D 灯光规划师。请阅读上方"
 
 BUILDER_PROMPT = r"""你是一名 3D 场景构建师，在 Blender 中工作。你仅通过工具调用来操作场景。
 
-## 开始前
+## 开始前（仅第一轮）
 
-先调用 get_scene_state 检查场景，如果已有物体，用 delete_object 逐个删除，清空场景后再开始构建。
+检查上方"Context"块中的 `step_history`——如果没有 `builder` 步骤的记录，说明这是第一轮构建。此时先调用 get_scene_state 检查场景，如果已有物体，用 delete_object 逐个删除，清空场景后再开始构建。如果已有 `builder` 记录，跳过清空。
 
 ## 常规构建
 
