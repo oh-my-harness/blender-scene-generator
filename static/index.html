@@ -815,10 +815,6 @@
             if (!desc) return;
 
             document.getElementById('submit-btn').disabled = true;
-            document.getElementById('events').innerHTML = '';
-            resetFlowchart();
-            resetState();
-            showCenterEmpty();
 
             fetch('/api/task', {
                 method: 'POST',
@@ -826,9 +822,15 @@
                 body: JSON.stringify({ description: desc }),
             }).then(resp => {
                 if (resp.status === 409) {
-                    alert('A task is already running. Wait for it to finish.');
+                    alert('已有任务在运行，请等待完成。');
                     document.getElementById('submit-btn').disabled = false;
+                    // Restore UI from server state instead of leaving it blank
+                    restoreFromStatus();
                 } else if (resp.ok) {
+                    // Only now clear the UI for the new task
+                    document.getElementById('events').innerHTML = '';
+                    resetFlowchart();
+                    resetState();
                     connectWS();
                 } else {
                     alert('Failed to start task');
