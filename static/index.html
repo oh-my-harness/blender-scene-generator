@@ -827,11 +827,13 @@
                     // Restore UI from server state instead of leaving it blank
                     restoreFromStatus();
                 } else if (resp.ok) {
-                    // Only now clear the UI for the new task
+                    // Clear UI for the new task, then sync state from server
+                    // (restoreFromStatus polls /api/status and connects WS)
                     document.getElementById('events').innerHTML = '';
                     resetFlowchart();
                     resetState();
-                    connectWS();
+                    // Small delay to let the workflow engine register the task
+                    setTimeout(() => restoreFromStatus(), 300);
                 } else {
                     alert('Failed to start task');
                     document.getElementById('submit-btn').disabled = false;
